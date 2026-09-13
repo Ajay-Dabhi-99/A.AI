@@ -39,7 +39,10 @@ export function toApiError(error: unknown, requestId: string): NormalizedError {
     return {
       statusCode: error.statusCode,
       body: body(error.code, error.message, error.retryable, requestId, error.details),
-      headers: {},
+      headers:
+        error.retryAfterSeconds === undefined
+          ? {}
+          : { 'retry-after': String(error.retryAfterSeconds) },
       unexpected: false,
     };
   }

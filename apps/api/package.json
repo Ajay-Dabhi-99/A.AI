@@ -15,7 +15,9 @@
     "test:live": "vitest run --config vitest.live.config.ts"
   },
   "dependencies": {
+    "@fastify/cookie": "11.1.2",
     "@fastify/cors": "11.3.0",
+    "@node-rs/argon2": "2.2.1",
     "@fastify/helmet": "13.1.1",
     "@a-ai/ai-core": "workspace:*",
     "@a-ai/ai-providers": "workspace:*",

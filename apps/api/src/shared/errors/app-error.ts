@@ -2,6 +2,10 @@ import { DEFAULT_RETRYABLE, type ErrorCode, type ValidationIssue } from '@a-ai/s
 
 export const HTTP_STATUS_BY_CODE: Readonly<Record<ErrorCode, number>> = {
   AUTH_REQUIRED: 401,
+  INVALID_CREDENTIALS: 401,
+  EMAIL_NOT_VERIFIED: 403,
+  TOKEN_INVALID: 400,
+  FORBIDDEN: 403,
   QUOTA_EXCEEDED: 429,
   RATE_LIMITED: 429,
   MODEL_UNAVAILABLE: 503,
@@ -17,6 +21,8 @@ export type AppErrorOptions = {
   retryable?: boolean;
   statusCode?: number;
   details?: ValidationIssue[];
+  /** Sent as the Retry-After header (rate limits, quotas). */
+  retryAfterSeconds?: number;
   cause?: unknown;
 };
 
@@ -29,6 +35,7 @@ export class AppError extends Error {
   readonly statusCode: number;
   readonly retryable: boolean;
   readonly details: ValidationIssue[] | undefined;
+  readonly retryAfterSeconds: number | undefined;
 
   constructor(code: ErrorCode, message: string, options: AppErrorOptions = {}) {
     super(message, { cause: options.cause });
@@ -37,5 +44,6 @@ export class AppError extends Error {
     this.statusCode = options.statusCode ?? HTTP_STATUS_BY_CODE[code];
     this.retryable = options.retryable ?? DEFAULT_RETRYABLE[code];
     this.details = options.details;
+    this.retryAfterSeconds = options.retryAfterSeconds;
   }
 }

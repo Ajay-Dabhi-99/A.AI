@@ -9,6 +9,8 @@ export default defineConfig({
   ssr: { resolve: { conditions: ['@a-ai/source'] } },
   test: {
     include: ['tests/live/**/*.test.ts'],
+    // Applies prisma/migrations to the test database first (reproducible from clean).
+    globalSetup: ['tests/live/global-setup.ts'],
     testTimeout: 20_000,
     hookTimeout: 20_000,
     fileParallelism: false,

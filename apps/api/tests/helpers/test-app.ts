@@ -1,9 +1,12 @@
 import { parseServerEnv, type ServerEnv } from '@a-ai/config/server';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import type { Redis } from 'ioredis';
 import RedisMock from 'ioredis-mock';
 import { buildApp } from '../../src/app.js';
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
+import type { ServiceOverrides } from '../../src/services/container.js';
+import { CapturingEmailSender, TestClock } from './fakes.js';
+import { createMemoryRepositories, type MemoryRepositories } from './memory-repositories.js';
 
 export const WEB_ORIGIN = 'http://localhost:5180';
 
@@ -33,18 +36,76 @@ export function controlledPrisma(
   return client as PrismaClient;
 }
 
-/** In-process Redis implementation of the ioredis API (blueprint v4 "controlled Redis test adapter"). */
+let isolatedRedisPort = 40_000;
+
+/**
+ * In-process Redis implementation of the ioredis API (blueprint v4 "controlled
+ * Redis test adapter"). ioredis-mock shares one data set between instances with
+ * the same host and port, so each call gets its own port: rate-limit and quota
+ * counters must never leak from one test into the next.
+ */
 export function controlledRedis(): Redis {
-  return new RedisMock() as unknown as Redis;
+  isolatedRedisPort += 1;
+  return new RedisMock({ port: isolatedRedisPort }) as unknown as Redis;
 }
 
 export async function buildTestApp(
-  options: { env?: ServerEnv; prisma?: PrismaClient; redis?: Redis } = {},
+  options: {
+    env?: ServerEnv;
+    prisma?: PrismaClient;
+    redis?: Redis;
+    services?: ServiceOverrides;
+  } = {},
 ): Promise<FastifyInstance> {
+  const repositories = createMemoryRepositories();
   return buildApp({
     env: options.env ?? testEnv(),
     prisma: options.prisma ?? controlledPrisma(),
     redis: options.redis ?? controlledRedis(),
+    services: {
+      repositories,
+      transaction: repositories.transaction,
+      email: new CapturingEmailSender(),
+      ...options.services,
+    },
     logger: false,
   });
+}
+
+export type AuthTestContext = {
+  app: FastifyInstance;
+  repositories: MemoryRepositories;
+  emails: CapturingEmailSender;
+  clock: TestClock;
+};
+
+/** A full app with in-memory accounts, captured emails and a controllable clock. */
+export async function buildAuthTestApp(
+  options: { env?: ServerEnv; services?: ServiceOverrides } = {},
+): Promise<AuthTestContext> {
+  const repositories = createMemoryRepositories();
+  const emails = new CapturingEmailSender();
+  const clock = new TestClock();
+  const app = await buildApp({
+    env: options.env ?? testEnv(),
+    prisma: controlledPrisma(),
+    redis: controlledRedis(),
+    services: {
+      repositories,
+      transaction: repositories.transaction,
+      email: emails,
+      clock,
+      ...options.services,
+    },
+    logger: false,
+  });
+  return { app, repositories, emails, clock };
+}
+
+export function cookieValue(response: LightMyRequestResponse, name: string): string | undefined {
+  return response.cookies.find((cookie) => cookie.name === name)?.value;
+}
+
+export function setCookieFor(response: LightMyRequestResponse, name: string) {
+  return response.cookies.find((cookie) => cookie.name === name);
 }

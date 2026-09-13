@@ -1,9 +1,14 @@
 /**
- * Application error taxonomy (blueprint section 14). Every failure that reaches
- * a client is one of these codes, regardless of which provider or layer failed.
+ * Application error taxonomy (blueprint section 14, extended in Phase 1 for
+ * authentication). Every failure that reaches a client is one of these codes,
+ * regardless of which provider or layer failed.
  */
 export const ERROR_CODES = [
   'AUTH_REQUIRED',
+  'INVALID_CREDENTIALS',
+  'EMAIL_NOT_VERIFIED',
+  'TOKEN_INVALID',
+  'FORBIDDEN',
   'QUOTA_EXCEEDED',
   'RATE_LIMITED',
   'MODEL_UNAVAILABLE',
@@ -23,6 +28,10 @@ export type ErrorCode = (typeof ERROR_CODES)[number];
  */
 export const DEFAULT_RETRYABLE: Readonly<Record<ErrorCode, boolean>> = {
   AUTH_REQUIRED: false,
+  INVALID_CREDENTIALS: false,
+  EMAIL_NOT_VERIFIED: false,
+  TOKEN_INVALID: false,
+  FORBIDDEN: false,
   QUOTA_EXCEEDED: false,
   RATE_LIMITED: true,
   MODEL_UNAVAILABLE: true,

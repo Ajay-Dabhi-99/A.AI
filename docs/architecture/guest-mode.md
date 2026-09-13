@@ -1,51 +1,44 @@
 # Guest mode
 
-> **Design. Implemented in Phase 1 (MODEL-007).** Nothing on this page exists in code yet.
+**Implemented in Phase 1** (identity, session, quota). Guest-to-user migration arrives with Phase 2, when guests first have conversations to migrate.
 
-Blueprint §2, §8, §13 and the v4 infrastructure decision; [ADR-002](../decisions/ADR-002-guest-session.md).
+Blueprint §2, §8, §13 and the v4 infrastructure decision; [ADR-002](../decisions/ADR-002-guest-session.md), [ADR-008](../decisions/ADR-008-authentication.md).
 
-## Goals
+## Identity resolution
 
-- Anyone can try A.ai without an account.
-- Limits are enforced on the server, never trusted from the browser.
-- Guest data is temporary and expires on its own.
-- A guest who signs up can keep their current conversation.
+`apps/api/src/plugins/auth.ts` → `resolveIdentity(request, reply, { createGuest })`:
 
-## Identity
+1. A valid `a_ai_session` cookie → **user**. An invalid or expired one is cleared.
+2. Otherwise a valid `a_ai_guest` cookie → **guest**. An invalid or expired one is cleared.
+3. Otherwise, with `createGuest: true`, a new guest session is created and its cookie set.
 
-- On the first API call without a session, the API issues `ma_guest`: a random 256-bit identifier in an HTTP-only, `Secure`, `SameSite=Lax` cookie, signed with `JWT_SECRET`.
-- The identity resolver produces either `{ kind: 'user', userId }` or `{ kind: 'guest', sessionId }` for every request.
+`GET /api/me` resolves with `createGuest: true`, so the first page load gives every visitor an identity. Routes that need an account call `requireUser`, which throws `AUTH_REQUIRED`.
 
-## Redis keys (Upstash, all with TTL)
+## Redis keys (Upstash, all prefixed `a-ai:`)
 
-| Key                                    | Value                                             | TTL                         |
-| -------------------------------------- | ------------------------------------------------- | --------------------------- |
-| `guest:session:{sessionId}`            | created-at, hashed IP, user agent family          | `GUEST_SESSION_TTL_MINUTES` |
-| `guest:usage:{sessionId}:{yyyy-mm-dd}` | message counter (INCR)                            | until end of day + 1h       |
-| `guest:conv:{sessionId}`               | temporary conversation (bounded list of messages) | session TTL                 |
-| `rate:{scope}:{key}:{window}`          | sliding/fixed window counter                      | window length               |
+| Key                                             | Value                          | Expiry                      |
+| ----------------------------------------------- | ------------------------------ | --------------------------- |
+| `guest:session:{guestId}`                       | `{ id, createdAt, expiresAt }` | `GUEST_SESSION_TTL_MINUTES` |
+| `quota:messages:guest:{guestId}:{yyyy-mm-dd}`   | message counter                | next UTC midnight + 1 h     |
+| `quota:messages:guest-ip:{ipHash}:{yyyy-mm-dd}` | message counter per IP         | next UTC midnight + 1 h     |
+| `quota:messages:user:{userId}:{yyyy-mm-dd}`     | message counter                | next UTC midnight + 1 h     |
+| `rate:{rule}:{hashedSubject}`                   | fixed-window counter           | the rule's window           |
 
-Redis expiry is the cleanup mechanism: no cron job is needed for guest data.
+Redis expiry is the only cleanup mechanism. Nothing about a guest is written to PostgreSQL.
 
-## Quota sequence (blueprint §13)
+## Quota
 
-1. Resolve identity.
-2. Check the daily quota (`GUEST_DAILY_MESSAGE_LIMIT`), atomically increment-and-compare in one Lua script.
-3. Check the request rate.
-4. Validate the model is allowed for guests.
-5. Call the provider.
-6. On a provider failure that produced no output, refund the reservation.
+`apps/api/src/services/quota.service.ts`:
 
-Exceeded: `QUOTA_EXCEEDED` (429, not retryable until reset).
+- Guests: `GUEST_DAILY_MESSAGE_LIMIT` per UTC day (default 20). Users: `USER_DAILY_MESSAGE_LIMIT` (default 200).
+- `consume()` increments atomically; if the result is over the limit it decrements again and throws `QUOTA_EXCEEDED` (429, `Retry-After` until midnight UTC). A rejected call never uses up allowance.
+- Clearing cookies creates a new guest with a fresh quota, so guests also count against a per-IP counter capped at 3× the guest limit.
 
-## Migration after signup
+Phase 1 exposes the quota through `/api/me`. Chat and comparison (Phases 2 and 4) call `consume()` before any provider work, as the integration test `apps/api/tests/integration/identity.test.ts` demonstrates.
 
-1. Signup/login completes while `ma_guest` is present.
-2. The migration service reads `guest:conv:{sessionId}`.
-3. It writes the conversation and messages under the user in one PostgreSQL transaction, keyed by `(userId, guestSessionId)` so a retry cannot duplicate them.
-4. It deletes the guest keys and clears the cookie.
+## Migration after signup (Phase 2, MODEL-019)
 
-## Abuse considerations
-
-- Clearing cookies resets a guest quota. A secondary per-IP limit (hashed IP) caps this.
-- Consider Cloudflare Turnstile before issuing a guest session if abuse appears.
+1. Signup or login completes while `a_ai_guest` is present.
+2. The migration service reads the guest's temporary conversation from Redis.
+3. It writes it under the user in one PostgreSQL transaction, keyed by `(userId, guestId)` so a retry cannot duplicate it.
+4. It deletes the guest keys and clears the guest cookie.

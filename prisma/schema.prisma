@@ -1,7 +1,6 @@
 // A.ai database schema (Supabase PostgreSQL).
-// Phase 0 (MODEL-004) establishes Prisma tooling and connectivity only.
-// Tables are introduced by the phase that owns them: users and sessions
-// arrive with authentication in Phase 1 (MODEL-006).
+// Every table created here must have Row Level Security enabled in its
+// migration (ADR-005): Supabase exposes the public schema through its Data API.
 
 generator client {
   provider            = "prisma-client"
@@ -13,4 +12,59 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+/// An account. Emails are stored lowercased and trimmed.
+model User {
+  id              String      @id @default(uuid()) @db.Uuid
+  email           String      @unique @db.VarChar(254)
+  passwordHash    String
+  emailVerifiedAt DateTime?   @db.Timestamptz(3)
+  createdAt       DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime    @updatedAt @db.Timestamptz(3)
+  sessions        Session[]
+  authTokens      AuthToken[]
+
+  @@map("users")
+}
+
+/// A signed-in browser. The cookie holds a random token; only its HMAC is stored,
+/// so a database leak cannot be replayed as a login.
+model Session {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  tokenHash  String    @unique @db.VarChar(64)
+  expiresAt  DateTime  @db.Timestamptz(3)
+  lastSeenAt DateTime  @default(now()) @db.Timestamptz(3)
+  revokedAt  DateTime? @db.Timestamptz(3)
+  userAgent  String?   @db.VarChar(512)
+  ipHash     String?   @db.VarChar(64)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+enum AuthTokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+
+  @@map("auth_token_type")
+}
+
+/// Single-use links sent by email. Only the HMAC of the token is stored.
+model AuthToken {
+  id        String        @id @default(uuid()) @db.Uuid
+  userId    String        @db.Uuid
+  type      AuthTokenType
+  tokenHash String        @unique @db.VarChar(64)
+  expiresAt DateTime      @db.Timestamptz(3)
+  usedAt    DateTime?     @db.Timestamptz(3)
+  createdAt DateTime      @default(now()) @db.Timestamptz(3)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@map("auth_tokens")
 }

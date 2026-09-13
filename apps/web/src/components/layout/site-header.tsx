@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import { ApiStatusPill } from './api-status-pill';
+import { HeaderAccount } from './header-account';
 import { Logo } from './logo';
 import { ThemeToggle } from './theme-toggle';
 
@@ -15,17 +16,18 @@ export function SiteHeader() {
           aria-label="Primary"
           className="hidden items-center gap-7 text-sm text-muted-foreground md:flex"
         >
-          <a href="#features" className="transition-colors hover:text-foreground">
+          <Link to="/#features" className="transition-colors hover:text-foreground">
             Features
-          </a>
-          <a href="#how-it-works" className="transition-colors hover:text-foreground">
+          </Link>
+          <Link to="/#how-it-works" className="transition-colors hover:text-foreground">
             How it works
-          </a>
+          </Link>
         </nav>
 
         <div className="flex items-center gap-2">
-          <ApiStatusPill className="hidden sm:inline-flex" />
+          <ApiStatusPill className="hidden lg:inline-flex" />
           <ThemeToggle />
+          <HeaderAccount />
         </div>
       </div>
     </header>

@@ -1,9 +1,10 @@
 import { z } from 'zod';
 
 /**
- * Server-only environment contract (blueprint v4, "MVP Environment Variables").
- * Never import this module from the web app: it describes secrets. The
- * browser-safe contract lives in `@a-ai/config/web`.
+ * Server-only environment contract (blueprint v4, "MVP Environment Variables",
+ * extended in Phase 1 for accounts and email). Never import this module from
+ * the web app: it describes secrets. The browser-safe contract lives in
+ * `@a-ai/config/web`.
  */
 
 const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'] as const;
@@ -37,6 +38,11 @@ function isOrigin(value: string): boolean {
     return false;
   }
 }
+
+const originSchema = z
+  .string()
+  .transform((value) => value.trim().replace(/\/+$/, ''))
+  .refine(isOrigin, 'must look like https://host[:port] with no path');
 
 export const serverEnvSchema = z
   .object({
@@ -73,8 +79,22 @@ export const serverEnvSchema = z
           .min(1, 'at least one origin is required'),
       ),
 
+    /** Public web app origin used in emailed links. Defaults to the first CORS_ORIGIN. */
+    APP_URL: optionalString.pipe(originSchema.optional()),
+
     GUEST_SESSION_TTL_MINUTES: z.coerce.number().int().min(5).max(10_080).default(1440),
     GUEST_DAILY_MESSAGE_LIMIT: z.coerce.number().int().min(1).max(1000).default(20),
+    USER_DAILY_MESSAGE_LIMIT: z.coerce.number().int().min(1).max(100_000).default(200),
+
+    /** Sender shown in emails, e.g. `A.ai <no-reply@your-domain.com>`. */
+    EMAIL_FROM: z
+      .string()
+      .trim()
+      .min(3)
+      .regex(/@/, 'must contain an email address')
+      .default('A.ai <onboarding@resend.dev>'),
+    /** Resend API key. Without it (development/test only) emails are written to the log. */
+    RESEND_API_KEY: optionalString,
 
     OPENROUTER_API_KEY: optionalString,
     GEMINI_API_KEY: optionalString,
@@ -99,6 +119,16 @@ export const serverEnvSchema = z
         });
       }
     });
+    if (env.APP_URL && !env.APP_URL.startsWith('https://')) {
+      ctx.addIssue({ code: 'custom', path: ['APP_URL'], message: 'production requires https://' });
+    }
+    if (!env.RESEND_API_KEY) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['RESEND_API_KEY'],
+        message: 'production requires a real email provider (verification and reset emails)',
+      });
+    }
   });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
@@ -108,6 +138,11 @@ export function configuredProviders(env: ServerEnv): ProviderId[] {
   return (Object.keys(PROVIDER_KEY_VARIABLES) as ProviderId[]).filter(
     (provider) => env[PROVIDER_KEY_VARIABLES[provider]] !== undefined,
   );
+}
+
+/** Origin of the web app for links in emails. */
+export function appUrl(env: ServerEnv): string {
+  return env.APP_URL ?? (env.CORS_ORIGIN[0] as string);
 }
 
 /** Raised at boot when configuration is invalid. Messages never include values. */

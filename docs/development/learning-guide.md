@@ -57,14 +57,52 @@ pnpm dev
 
 ---
 
-## Phase 1: Auth + guest identity
+## Phase 1: Auth + guest identity (built, awaiting live verification)
 
 **Goal:** every request knows who is calling, a guest or a signed-in user, and limits are enforced on the server.
 
-- **Learn:** password hashing (argon2id), session cookies (HttpOnly, Secure, SameSite), CSRF, Redis TTLs, atomic counters with Lua, rate-limiting algorithms, database migrations, Row Level Security in Supabase.
-- **Where:** `apps/api/src/modules/auth`, `modules/guest`, `plugins/auth.ts`, `services/quota`, `services/rate-limit`, `prisma/migrations`, `apps/web/src/features/auth`.
-- **See it work:** sign up, sign out, exceed the guest limit and get `QUOTA_EXCEEDED`; restart the API and confirm the limit still holds.
-- **Design:** [guest mode](../architecture/guest-mode.md), [auth API](../api/auth.md).
+### Concepts you learn
+
+| Concept                                              | Where to see it                                                             |
+| ---------------------------------------------------- | --------------------------------------------------------------------------- |
+| Password hashing with argon2id                       | `apps/api/src/shared/security/password.ts`                                  |
+| Why sessions store an HMAC, not the token            | `apps/api/src/modules/auth/session.service.ts`, `shared/security/tokens.ts` |
+| Cookies: HttpOnly, SameSite, `__Host-`               | `apps/api/src/shared/http/cookies.ts`                                       |
+| CSRF defence with an origin check                    | `apps/api/src/middleware/origin-check.ts`                                   |
+| Not revealing which emails have accounts             | `apps/api/src/modules/auth/auth.service.ts` (`signup`, `login`)             |
+| Single-use links with an atomic update               | `apps/api/src/repositories/prisma.repositories.ts` (`consume`)              |
+| Repository pattern: swap Prisma for memory in tests  | `src/repositories/types.ts`, `tests/helpers/memory-repositories.ts`         |
+| Fixed-window rate limiting in Redis (MULTI/EXEC)     | `apps/api/src/services/kv-store.ts`, `rate-limit.service.ts`                |
+| Daily quotas that do not leak allowance on rejection | `apps/api/src/services/quota.service.ts`                                    |
+| Resolving guest vs user identity                     | `apps/api/src/plugins/auth.ts`                                              |
+| Migrations generated without a database, plus RLS    | `prisma/migrations/20260913140000_auth_accounts/migration.sql`              |
+| Forms that share validation with the API             | `packages/validation/src/auth.ts`, `apps/web/src/pages/signup-page.tsx`     |
+| Protected routes and safe redirects                  | `apps/web/src/app/require-user.tsx`, `features/auth/form-errors.ts`         |
+| Tokens in the URL fragment, removed after reading    | `apps/web/src/features/auth/use-link-token.ts`                              |
+
+### Tests to read
+
+- `apps/api/tests/unit/auth.service.test.ts`: every account rule, one test each.
+- `apps/api/tests/integration/auth.test.ts`: the whole flow over HTTP with cookies.
+- `apps/api/tests/integration/identity.test.ts`: guests, expired sessions, origin check, rate limit, quota.
+- `apps/web/tests/auth-pages.test.tsx`: forms, server errors on fields, redirects.
+
+### Try it (once Supabase and Upstash are in `.env`)
+
+```bash
+pnpm db:deploy
+```
+
+```bash
+pnpm dev
+```
+
+1. Open http://localhost:5180/signup and create an account.
+2. Without `RESEND_API_KEY`, the verification email is printed in the API terminal. Copy the `/verify-email#token=…` link into the browser.
+3. You land signed in; open **Settings** to see your email and daily quota.
+4. Sign out, then use **Forgot password** the same way.
+
+**Design:** [guest mode](../architecture/guest-mode.md), [auth API](../api/auth.md), [ADR-008](../decisions/ADR-008-authentication.md).
 
 ## Phase 2: Single-model chat
 

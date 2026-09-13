@@ -16,6 +16,9 @@ declare module 'fastify' {
 export function createRedisClient(env: ServerEnv, logger: FastifyBaseLogger): Redis {
   const client = new Redis(env.REDIS_URL, {
     connectTimeout: 5_000,
+    // Without this, commands queue while Upstash is unreachable and requests stall
+    // for 15s+ before failing. Every /api request touches Redis, so fail within 2s.
+    commandTimeout: 2_000,
     maxRetriesPerRequest: 2,
     retryStrategy: (attempt) => Math.min(attempt * 250, 5_000),
   });
