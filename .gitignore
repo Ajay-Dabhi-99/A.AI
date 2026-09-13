@@ -1,0 +1,29 @@
+# dependencies
+node_modules/
+
+# builds
+dist/
+build/
+*.tsbuildinfo
+apps/api/src/generated/
+
+# env: only .env.example is committed
+.env
+.env.*
+!.env.example
+
+# local database data (embedded Postgres)
+.data/
+
+# test + tooling output
+.turbo/
+coverage/
+playwright-report/
+test-results/
+.vite/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+*.log

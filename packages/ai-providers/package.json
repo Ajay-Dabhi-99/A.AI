@@ -1,0 +1,29 @@
+{
+  "name": "@a-ai/ai-providers",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Provider adapters and provider-specific mapping utilities (HTTP, SSE parsing, error normalization)",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@a-ai/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:unit": "vitest run"
+  },
+  "dependencies": {
+    "@a-ai/ai-core": "workspace:*",
+    "@a-ai/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "@a-ai/config": "workspace:*",
+    "@types/node": "26.5.1",
+    "typescript": "6.0.3",
+    "vitest": "5.0.0"
+  }
+}

@@ -1,0 +1,58 @@
+# Promotes a commit only after the full gate passes on that exact commit
+# (blueprint §21.10). Hosting is wired in Phase 10: the API deploys through a
+# Render deploy hook, the web app through a Vercel deploy hook.
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Environment to deploy
+        type: choice
+        options: [staging, production]
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: Full gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm verify
+      - name: Live infrastructure tests
+        env:
+          TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+          TEST_REDIS_URL: ${{ secrets.TEST_REDIS_URL }}
+        run: pnpm test:live
+
+  deploy:
+    name: Deploy to ${{ inputs.target }}
+    needs: gate
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target }}
+    steps:
+      - name: Trigger API and web deploy hooks
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          for name in RENDER_DEPLOY_HOOK_URL VERCEL_DEPLOY_HOOK_URL; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Secret $name is not configured for the ${{ inputs.target }} environment (set up in Phase 10)"
+              exit 1
+            fi
+          done
+          curl --fail --silent --show-error -X POST "$RENDER_DEPLOY_HOOK_URL" > /dev/null
+          curl --fail --silent --show-error -X POST "$VERCEL_DEPLOY_HOOK_URL" > /dev/null
+          echo "Deploy hooks triggered for commit $GITHUB_SHA"

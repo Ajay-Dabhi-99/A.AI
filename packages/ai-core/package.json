@@ -1,0 +1,28 @@
+{
+  "name": "@a-ai/ai-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Provider-neutral AI contracts, normalized events and the provider registry. No provider SDKs.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@a-ai/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:unit": "vitest run"
+  },
+  "dependencies": {
+    "@a-ai/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "@a-ai/config": "workspace:*",
+    "@types/node": "26.5.1",
+    "typescript": "6.0.3",
+    "vitest": "5.0.0"
+  }
+}

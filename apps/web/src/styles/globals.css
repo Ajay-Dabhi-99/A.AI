@@ -1,0 +1,178 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
+
+/*
+ * A.ai design tokens.
+ * Light is the base palette; dark applies for the system preference unless the
+ * user chose light, and always when the user chose dark. Components use tokens
+ * only, never raw colors, so both themes stay consistent.
+ * Contrast: every text token meets WCAG AA on its intended surface.
+ */
+:root {
+  --background: #f6f5f1;
+  --surface: #ffffff;
+  --surface-muted: #eeede7;
+  --border: #dedcd3;
+  --foreground: #111318;
+  --muted-foreground: #585e6b;
+  --primary: #c2410c;
+  --primary-hover: #a3370a;
+  --primary-foreground: #ffffff;
+  --accent: #4d7c0f;
+  --ring: #c2410c;
+  --success: #15803d;
+  --warning: #a16207;
+  --danger: #b91c1c;
+  --lane-1: #c2410c;
+  --lane-2: #0e7490;
+  --lane-3: #6d28d9;
+  --lane-4: #4d7c0f;
+  --grid-line: rgb(17 19 24 / 0.06);
+  --glow: rgb(194 65 12 / 0.14);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --background: #0a0b0f;
+    --surface: #12141a;
+    --surface-muted: #1a1d25;
+    --border: #262a35;
+    --foreground: #edeef2;
+    --muted-foreground: #8c92a3;
+    --primary: #ff6b2c;
+    --primary-hover: #ff8651;
+    --primary-foreground: #1a0a02;
+    --accent: #c6f35a;
+    --ring: #ff6b2c;
+    --success: #34d399;
+    --warning: #fbbf24;
+    --danger: #f87171;
+    --lane-1: #ff6b2c;
+    --lane-2: #3cc8e8;
+    --lane-3: #a78bfa;
+    --lane-4: #c6f35a;
+    --grid-line: rgb(237 238 242 / 0.05);
+    --glow: rgb(255 107 44 / 0.16);
+  }
+}
+
+:root[data-theme='dark'] {
+  --background: #0a0b0f;
+  --surface: #12141a;
+  --surface-muted: #1a1d25;
+  --border: #262a35;
+  --foreground: #edeef2;
+  --muted-foreground: #8c92a3;
+  --primary: #ff6b2c;
+  --primary-hover: #ff8651;
+  --primary-foreground: #1a0a02;
+  --accent: #c6f35a;
+  --ring: #ff6b2c;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --lane-1: #ff6b2c;
+  --lane-2: #3cc8e8;
+  --lane-3: #a78bfa;
+  --lane-4: #c6f35a;
+  --grid-line: rgb(237 238 242 / 0.05);
+  --glow: rgb(255 107 44 / 0.16);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-lane-1: var(--lane-1);
+  --color-lane-2: var(--lane-2);
+  --color-lane-3: var(--lane-3);
+  --color-lane-4: var(--lane-4);
+
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+
+  --animate-caret: caret 1s steps(1) infinite;
+  --animate-pulse-dot: pulse-dot 2.4s ease-out infinite;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+
+  @keyframes caret {
+    50% {
+      opacity: 0;
+    }
+  }
+  @keyframes pulse-dot {
+    0% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 45%, transparent);
+    }
+    70%,
+    100% {
+      box-shadow: 0 0 0 6px transparent;
+    }
+  }
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: 'ss01', 'cv11';
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background-color: color-mix(in srgb, var(--primary) 28%, transparent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@utility hero-grid {
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 30%, transparent 75%);
+}
+
+@utility hero-glow {
+  background-image: radial-gradient(ellipse 60% 45% at 50% 0%, var(--glow), transparent 70%);
+}

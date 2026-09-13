@@ -1,0 +1,16 @@
+// A.ai database schema (Supabase PostgreSQL).
+// Phase 0 (MODEL-004) establishes Prisma tooling and connectivity only.
+// Tables are introduced by the phase that owns them: users and sessions
+// arrive with authentication in Phase 1 (MODEL-006).
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../apps/api/src/generated/prisma"
+  runtime             = "nodejs"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}

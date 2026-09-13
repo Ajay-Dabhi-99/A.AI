@@ -1,0 +1,51 @@
+# Live infrastructure gate against real Supabase PostgreSQL and Upstash Redis
+# (blueprint v4 "MVP Infrastructure Acceptance Checklist").
+# Uses a dedicated test Supabase project and test Upstash database, never production.
+name: Live infrastructure tests
+
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+concurrency:
+  group: live-tests
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    name: Supabase + Upstash
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Verify test secrets are present (values are never printed)
+        env:
+          TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+          TEST_REDIS_URL: ${{ secrets.TEST_REDIS_URL }}
+        run: |
+          missing=0
+          for name in TEST_DATABASE_URL TEST_REDIS_URL; do
+            if [ -z "${!name}" ]; then echo "::error::Secret $name is not configured"; missing=1; fi
+          done
+          exit $missing
+
+      - name: Live tests
+        env:
+          TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+          TEST_REDIS_URL: ${{ secrets.TEST_REDIS_URL }}
+        run: pnpm test:live

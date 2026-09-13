@@ -1,0 +1,35 @@
+{
+  "name": "@a-ai/config",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Typed environment contracts and shared TypeScript configuration",
+  "type": "module",
+  "exports": {
+    "./server": {
+      "@a-ai/source": "./src/server.ts",
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    },
+    "./web": {
+      "@a-ai/source": "./src/web.ts",
+      "types": "./dist/web.d.ts",
+      "default": "./dist/web.js"
+    },
+    "./tsconfig.base.json": "./tsconfig.base.json",
+    "./tsconfig.node.json": "./tsconfig.node.json",
+    "./tsconfig.react.json": "./tsconfig.react.json"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:unit": "vitest run"
+  },
+  "dependencies": {
+    "zod": "4.6.4"
+  },
+  "devDependencies": {
+    "@types/node": "26.5.1",
+    "typescript": "6.0.3",
+    "vitest": "5.0.0"
+  }
+}

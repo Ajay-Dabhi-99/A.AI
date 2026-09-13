@@ -1,0 +1,29 @@
+{
+  "name": "@a-ai/validation",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser-safe Zod schemas for API requests and responses",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@a-ai/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:unit": "vitest run"
+  },
+  "dependencies": {
+    "@a-ai/shared-types": "workspace:*",
+    "zod": "4.6.4"
+  },
+  "devDependencies": {
+    "@a-ai/config": "workspace:*",
+    "@types/node": "26.5.1",
+    "typescript": "6.0.3",
+    "vitest": "5.0.0"
+  }
+}
