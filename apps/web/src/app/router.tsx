@@ -1,4 +1,5 @@
 import { createBrowserRouter, type RouteObject } from 'react-router';
+import { ChatPage } from '@/pages/chat-page';
 import { ForgotPasswordPage } from '@/pages/forgot-password-page';
 import { LandingPage } from '@/pages/landing-page';
 import { LoginPage } from '@/pages/login-page';
@@ -21,6 +22,9 @@ export const routes: RouteObject[] = [
       { path: 'verify-email', element: <VerifyEmailPage /> },
       { path: 'forgot-password', element: <ForgotPasswordPage /> },
       { path: 'reset-password', element: <ResetPasswordPage /> },
+      // Guests and users; saved conversations (/chat/:id) need an account.
+      { path: 'chat', element: <ChatPage /> },
+      { path: 'chat/:conversationId', element: <ChatPage /> },
       {
         element: <RequireUser />,
         children: [{ path: 'settings', element: <SettingsPage /> }],

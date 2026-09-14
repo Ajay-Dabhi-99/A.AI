@@ -6,10 +6,22 @@ import type { AIUsage, RunError } from './ai.js';
  * the server, so the web app has one parser for all providers.
  */
 export type ChatStreamEventMap = {
-  'message.start': { runId: string; provider: string; model: string };
+  /** `conversationId` is null for guests, whose chat is not saved. */
+  'message.start': {
+    runId: string;
+    provider: string;
+    model: string;
+    conversationId: string | null;
+  };
   'message.delta': { runId: string; text: string };
   usage: { runId: string; usage: AIUsage };
-  'message.done': { runId: string; status: 'completed' | 'cancelled' };
+  /** `messageId` is the saved assistant message (null for guests or when nothing was produced). */
+  'message.done': {
+    runId: string;
+    status: 'completed' | 'cancelled';
+    messageId: string | null;
+    latencyMs: number;
+  };
   error: { runId?: string } & RunError;
 };
 

@@ -36,14 +36,19 @@ export type ProviderFetchOptions = {
   provider: string;
   url: string;
   init?: Omit<RequestInit, 'signal'>;
+  /**
+   * Time allowed until the response headers arrive. It does not limit reading
+   * the body, so long streamed answers are not cut off; adapters apply their
+   * own idle timeout while streaming.
+   */
   timeoutMs: number;
-  /** Caller cancellation (client disconnected, user pressed stop). */
+  /** Caller cancellation (client disconnected, user pressed stop). Applies to the body too. */
   signal?: AbortSignal;
   fetchImpl?: typeof fetch;
 };
 
 /**
- * fetch with a hard timeout. Outcomes:
+ * fetch with a connect timeout. Outcomes:
  * - caller aborted      -> rethrows the caller's abort reason (not a provider failure)
  * - timeout elapsed     -> AIProviderError PROVIDER_TIMEOUT
  * - network failure     -> AIProviderError MODEL_UNAVAILABLE (retryable)
@@ -51,15 +56,19 @@ export type ProviderFetchOptions = {
  */
 export async function providerFetch(options: ProviderFetchOptions): Promise<Response> {
   const { provider, url, init, timeoutMs, signal, fetchImpl = fetch } = options;
-  const timeout = AbortSignal.timeout(timeoutMs);
-  const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
+  const connect = new AbortController();
+  const timer = setTimeout(
+    () => connect.abort(new DOMException(`${provider} connect timeout`, 'TimeoutError')),
+    timeoutMs,
+  );
+  const combined = signal ? AbortSignal.any([signal, connect.signal]) : connect.signal;
 
   let response: Response;
   try {
     response = await fetchImpl(url, { ...init, signal: combined });
   } catch (error) {
     if (signal?.aborted) throw signal.reason;
-    if (timeout.aborted) {
+    if (connect.signal.aborted) {
       throw new AIProviderError({
         provider,
         code: 'PROVIDER_TIMEOUT',
@@ -74,6 +83,8 @@ export async function providerFetch(options: ProviderFetchOptions): Promise<Resp
       retryable: true,
       cause: error,
     });
+  } finally {
+    clearTimeout(timer);
   }
 
   if (!response.ok) {

@@ -1,19 +1,18 @@
 # Provider abstraction
 
-Blueprint §7, [ADR-003](../decisions/ADR-003-provider-abstraction.md). Goal: add or replace a model without touching chat UI, quota logic or database structure.
+Blueprint §7, [ADR-003](../decisions/ADR-003-provider-abstraction.md), [ADR-009](../decisions/ADR-009-chat-providers.md). Goal: add or replace a model without touching chat UI, quota logic or database structure.
 
 ## Layers
 
-| Layer               | Package                                | Knows about                                                                                         |
-| ------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Contract            | `packages/ai-core`                     | `AIProvider`, `AIChatRequest`, `AIResponse`, `AIStreamChunk`, `AIProviderError`, `ProviderRegistry` |
-| Plumbing            | `packages/ai-providers`                | HTTP timeouts, cancellation, status mapping, upstream SSE parsing                                   |
-| Adapters (Phase 2+) | `packages/ai-providers/src/<provider>` | One provider's request/response format                                                              |
-| Wiring (Phase 2+)   | `apps/api/src/providers`               | Which adapters to register, based on configured keys                                                |
+| Layer    | Where                                                                   | Knows about                                                                                         |
+| -------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Contract | `packages/ai-core`                                                      | `AIProvider`, `AIChatRequest`, `AIResponse`, `AIStreamChunk`, `AIProviderError`, `ProviderRegistry` |
+| Plumbing | `packages/ai-providers/src/http.ts`, `packages/shared-types/src/sse.ts` | Connect timeout, cancellation, status mapping, SSE parsing                                          |
+| Adapter  | `packages/ai-providers/src/openai-compatible.ts`                        | The OpenAI Chat Completions streaming protocol                                                      |
+| Catalog  | `packages/ai-providers/src/catalog.ts`                                  | Per-provider base URL, parameters and models                                                        |
+| Wiring   | `apps/api/src/providers/model-directory.ts`                             | Which adapters exist, based on configured keys                                                      |
 
-## Implemented in Phase 0
-
-### `AIProvider` (`packages/ai-core/src/provider.ts`)
+## `AIProvider`
 
 ```ts
 interface AIProvider {
@@ -24,41 +23,35 @@ interface AIProvider {
 }
 ```
 
-`AIChatRequest.signal` is how a disconnected client or a Stop button cancels the upstream call. Usage carries `source: 'provider' | 'estimated'` so the UI can always label estimates.
+`AIChatRequest.signal` cancels the upstream call. Usage carries `source: 'provider' | 'estimated'`.
 
-### `ProviderRegistry` (`packages/ai-core/src/registry.ts`)
+## Failure policy
 
-Adapters register only when their key is configured. `get(id)` for a missing provider throws `AIProviderError` with `MODEL_UNAVAILABLE`, `retryable: false`.
+Every call goes through `providerFetch` and the adapter, so the policy is identical for every provider:
 
-### `providerFetch` (`packages/ai-providers/src/http.ts`)
+| Situation                             | Result                                                        |
+| ------------------------------------- | ------------------------------------------------------------- |
+| Caller aborted (client left, Stop)    | Rethrows the abort. Not a provider failure.                   |
+| No response headers within 20 s       | `PROVIDER_TIMEOUT`, retryable                                 |
+| No stream data for 45 s               | `PROVIDER_TIMEOUT`, retryable                                 |
+| Network failure or dropped connection | `MODEL_UNAVAILABLE`, retryable                                |
+| HTTP or mid-stream error 429          | `RATE_LIMITED`, retryable, `Retry-After` when sent            |
+| 408 / 504                             | `PROVIDER_TIMEOUT`, retryable                                 |
+| 401 / 403 / 404                       | `MODEL_UNAVAILABLE`, not retryable (bad key or unknown model) |
+| 5xx                                   | `MODEL_UNAVAILABLE`, retryable                                |
+| Other 4xx or unreadable stream event  | `PROVIDER_BAD_RESPONSE`, not retryable                        |
 
-Every adapter makes HTTP calls through this one function, so the failure policy is identical everywhere:
+Provider error bodies are discarded; they can echo keys or prompts.
 
-| Situation                          | Result                                                            |
-| ---------------------------------- | ----------------------------------------------------------------- |
-| Caller aborted (client left, Stop) | Rethrows the abort. Not counted as a provider failure.            |
-| Timeout elapsed                    | `PROVIDER_TIMEOUT`, retryable                                     |
-| Network failure                    | `MODEL_UNAVAILABLE`, retryable                                    |
-| HTTP 429                           | `RATE_LIMITED`, retryable, `retryAfterSeconds` from `Retry-After` |
-| HTTP 408 / 504                     | `PROVIDER_TIMEOUT`, retryable                                     |
-| HTTP 401 / 403 / 404               | `MODEL_UNAVAILABLE`, not retryable (bad key or unknown model)     |
-| HTTP 5xx                           | `MODEL_UNAVAILABLE`, retryable                                    |
-| Other 4xx                          | `PROVIDER_BAD_RESPONSE`, not retryable                            |
+## OpenAI-compatible adapter
 
-Error bodies from providers are drained and discarded; they can echo keys or prompts.
+- Sends `stream: true`, `stream_options: { include_usage: true }` and the provider's output-limit parameter.
+- Yields `delta` for `choices[0].delta.content`, `usage` from `usage` or Groq's `x_groq.usage`, and `done` with the finish reason.
+- Ignores SSE comments such as OpenRouter's `: OPENROUTER PROCESSING`.
+- Cancels the upstream body when the consumer stops early or an error occurs.
 
-### `parseSseStream` (`packages/ai-providers/src/sse.ts`)
+## Adding a provider
 
-Incremental parser for OpenAI-compatible streams (OpenRouter, Groq). Handles events split across network chunks, CRLF (including a CR/LF pair split between chunks), multi-line `data`, comments/keep-alives and multi-byte UTF-8 split across chunks.
+**OpenAI-compatible** (most providers): add a key variable in `packages/config/src/server.ts` and `.env.example`, then an endpoint and model list in `catalog.ts`, and a row in the catalog test.
 
-## API error mapping
-
-`apps/api/src/shared/errors/to-api-error.ts` turns `AIProviderError` into the HTTP envelope: `RATE_LIMITED` → 429 (with `Retry-After`), `PROVIDER_TIMEOUT` → 504, `PROVIDER_BAD_RESPONSE` → 502, `MODEL_UNAVAILABLE` → 503.
-
-## Adding an adapter (Phase 2 onward)
-
-1. Create `packages/ai-providers/src/<provider>/` with a class implementing `AIProvider`.
-2. Use `providerFetch` for every call and `parseSseStream` for streaming.
-3. Map the provider's usage fields to `AIUsage` with `source: 'provider'`; fall back to estimation with `source: 'estimated'`.
-4. Unit-test the request mapping, stream mapping, usage mapping and every error row above with a fake `fetchImpl`.
-5. Register it in `apps/api/src/providers` only when its key is present.
+**Different protocol:** implement `AIProvider` in `packages/ai-providers/src/<provider>/`, use `providerFetch` for HTTP and `parseSseStream` for streams, and cover every row of the failure table with a fake `fetchImpl`.

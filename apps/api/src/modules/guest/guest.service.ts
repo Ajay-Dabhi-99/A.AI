@@ -42,6 +42,11 @@ export class GuestService {
     return session;
   }
 
+  /** Ends a guest session early, e.g. after its chat moved into an account. */
+  async end(id: string): Promise<void> {
+    if (TOKEN_FORMAT.test(id)) await this.#store.delete(this.#key(id));
+  }
+
   #key(id: string): string {
     return `guest:session:${id}`;
   }

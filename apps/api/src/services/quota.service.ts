@@ -51,9 +51,11 @@ export class QuotaService {
       });
     }
 
+    // Relative TTL from the service clock: independent of Redis's own clock.
+    const ttlMs = Math.max(1_000, keepUntil.getTime() - this.#clock.now().getTime());
     const counts: number[] = [];
     for (const counter of counters) {
-      counts.push(await this.#store.incrementUntil(counter.key, keepUntil));
+      counts.push(await this.#store.incrementWithTtl(counter.key, ttlMs));
     }
 
     if (counters.some((counter, index) => (counts[index] ?? 0) > counter.limit)) {
@@ -66,6 +68,21 @@ export class QuotaService {
     }
 
     return this.#toSummary(subject, counts[0] ?? 0, resetsAt);
+  }
+
+  /**
+   * Gives one message back, for attempts that produced nothing (provider
+   * failure, cancelled before the first token). Never goes below zero.
+   */
+  async refund(subject: QuotaSubject, options: { ipHash?: string } = {}): Promise<void> {
+    const { day } = this.#window();
+    const keys = [this.#key(subject, day)];
+    if (subject.kind === 'guest' && options.ipHash) {
+      keys.push(`quota:messages:guest-ip:${options.ipHash}:${day}`);
+    }
+    for (const key of keys) {
+      if ((await this.#store.getCount(key)) > 0) await this.#store.decrement(key);
+    }
   }
 
   #limit(subject: QuotaSubject): number {

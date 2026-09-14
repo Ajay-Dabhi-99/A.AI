@@ -6,6 +6,7 @@ import type { PrismaClient } from './generated/prisma/client.js';
 import { registerOriginCheck } from './middleware/origin-check.js';
 import { registerApiRateLimit } from './middleware/rate-limit.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
+import { chatRoutes } from './modules/chat/chat.routes.js';
 import { healthRoutes } from './modules/health/health.routes.js';
 import { meRoutes } from './modules/users/me.routes.js';
 import { registerCorsAndSecurity } from './plugins/cors.js';
@@ -71,6 +72,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(healthRoutes, { env });
   await app.register(authRoutes, { prefix: '/api/auth' });
   await app.register(meRoutes);
+  await app.register(chatRoutes);
 
   return app;
 }

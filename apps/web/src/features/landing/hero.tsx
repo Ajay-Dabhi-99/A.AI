@@ -1,5 +1,6 @@
 import { ArrowRight } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
+import { Link } from 'react-router';
 import { buttonVariants } from '@/components/ui/button-variants';
 import { Badge } from '@/components/ui/badge';
 import { ModelRace } from './model-race';
@@ -48,12 +49,15 @@ export function Hero() {
             {...rise(0.2)}
             className="mt-8 flex flex-wrap items-center justify-center gap-3"
           >
-            <a href="#how-it-works" className={buttonVariants({ size: 'lg' })}>
-              See how it works
+            <Link to="/chat" className={buttonVariants({ size: 'lg' })}>
+              Start chatting
               <ArrowRight />
-            </a>
-            <a href="#features" className={buttonVariants({ variant: 'secondary', size: 'lg' })}>
-              Explore features
+            </Link>
+            <a
+              href="#how-it-works"
+              className={buttonVariants({ variant: 'secondary', size: 'lg' })}
+            >
+              See how it works
             </a>
           </motion.div>
         </div>

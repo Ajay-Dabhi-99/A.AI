@@ -1,6 +1,6 @@
 # Context management
 
-> **Design. Basic budget in Phase 2, full implementation in Phase 5.**
+> **Phase 2: steps 1, 3, 4 and 5 implemented** in `apps/api/src/ai/context-builder.ts` (characters ÷ 4 estimate, 5% safety margin, reply capped at 4,096 tokens). **Phase 5:** summaries, caching and per-model tokenizers.
 
 Blueprint §10.
 

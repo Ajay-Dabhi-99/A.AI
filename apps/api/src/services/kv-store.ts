@@ -11,8 +11,11 @@ export interface KeyValueStore {
    * Returns the count including this hit and the time until the window resets.
    */
   hitWindow(key: string, windowMs: number): Promise<{ count: number; resetInMs: number }>;
-  /** Increments a counter that expires at an absolute time. */
-  incrementUntil(key: string, expiresAt: Date): Promise<number>;
+  /**
+   * Increments a counter and (re)sets its time to live. Relative, not absolute,
+   * so it does not depend on the API host's clock agreeing with Redis's clock.
+   */
+  incrementWithTtl(key: string, ttlMs: number): Promise<number>;
   decrement(key: string): Promise<number>;
   getCount(key: string): Promise<number>;
   setJson(key: string, value: unknown, ttlMs: number): Promise<void>;
@@ -46,9 +49,9 @@ export function createRedisStore(redis: Redis, prefix: string = KEY_PREFIX): Key
       return { count: Number(count), resetInMs: Math.max(0, Number(ttl)) };
     },
 
-    async incrementUntil(name, expiresAt) {
+    async incrementWithTtl(name, ttlMs) {
       const k = key(name);
-      const [count] = unwrap(await redis.multi().incr(k).pexpireat(k, expiresAt.getTime()).exec());
+      const [count] = unwrap(await redis.multi().incr(k).pexpire(k, ttlMs).exec());
       return Number(count);
     },
 

@@ -16,14 +16,15 @@ datasource db {
 
 /// An account. Emails are stored lowercased and trimmed.
 model User {
-  id              String      @id @default(uuid()) @db.Uuid
-  email           String      @unique @db.VarChar(254)
+  id              String         @id @default(uuid()) @db.Uuid
+  email           String         @unique @db.VarChar(254)
   passwordHash    String
-  emailVerifiedAt DateTime?   @db.Timestamptz(3)
-  createdAt       DateTime    @default(now()) @db.Timestamptz(3)
-  updatedAt       DateTime    @updatedAt @db.Timestamptz(3)
+  emailVerifiedAt DateTime?      @db.Timestamptz(3)
+  createdAt       DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime       @updatedAt @db.Timestamptz(3)
   sessions        Session[]
   authTokens      AuthToken[]
+  conversations   Conversation[]
 
   @@map("users")
 }
@@ -67,4 +68,75 @@ model AuthToken {
 
   @@index([userId, type])
   @@map("auth_tokens")
+}
+
+/// A saved chat. Guests never get rows here; their chat lives in Redis until
+/// migrated after signup, which sets guestMigrationKey so a retry cannot duplicate it.
+model Conversation {
+  id                String     @id @default(uuid()) @db.Uuid
+  userId            String     @db.Uuid
+  title             String     @db.VarChar(120)
+  guestMigrationKey String?    @unique @db.VarChar(64)
+  createdAt         DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime   @updatedAt @db.Timestamptz(3)
+  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages          Message[]
+  runs              ModelRun[]
+
+  @@index([userId, updatedAt(sort: Desc)])
+  @@map("conversations")
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+
+  @@map("message_role")
+}
+
+model Message {
+  id             String       @id @default(uuid()) @db.Uuid
+  conversationId String       @db.Uuid
+  role           MessageRole
+  content        String       @db.Text
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  run            ModelRun?
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+enum RunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+  TIMEOUT
+
+  @@map("run_status")
+}
+
+/// One provider call (blueprint §8 model_runs). A failed run with no output has no message.
+model ModelRun {
+  id               String       @id @default(uuid()) @db.Uuid
+  conversationId   String       @db.Uuid
+  messageId        String?      @unique @db.Uuid
+  provider         String       @db.VarChar(32)
+  model            String       @db.VarChar(128)
+  status           RunStatus    @default(RUNNING)
+  ttftMs           Int?
+  latencyMs        Int?
+  inputTokens      Int?
+  outputTokens     Int?
+  usageSource      String?      @db.VarChar(16)
+  estimatedCostUsd Decimal?     @db.Decimal(12, 6)
+  errorCode        String?      @db.VarChar(64)
+  createdAt        DateTime     @default(now()) @db.Timestamptz(3)
+  completedAt      DateTime?    @db.Timestamptz(3)
+  conversation     Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message          Message?     @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+  @@map("model_runs")
 }

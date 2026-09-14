@@ -5,7 +5,10 @@ import RedisMock from 'ioredis-mock';
 import { buildApp } from '../../src/app.js';
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
 import type { ServiceOverrides } from '../../src/services/container.js';
+import type { AIModel } from '@a-ai/shared-types';
 import { CapturingEmailSender, TestClock } from './fakes.js';
+import { createMemoryConversations, type MemoryConversations } from './memory-conversations.js';
+import { ScriptedProvider, testModel } from './scripted-provider.js';
 import { createMemoryRepositories, type MemoryRepositories } from './memory-repositories.js';
 
 export const WEB_ORIGIN = 'http://localhost:5180';
@@ -65,6 +68,7 @@ export async function buildTestApp(
     services: {
       repositories,
       transaction: repositories.transaction,
+      conversations: createMemoryConversations(),
       email: new CapturingEmailSender(),
       ...options.services,
     },
@@ -93,6 +97,7 @@ export async function buildAuthTestApp(
     services: {
       repositories,
       transaction: repositories.transaction,
+      conversations: createMemoryConversations(),
       email: emails,
       clock,
       ...options.services,
@@ -100,6 +105,26 @@ export async function buildAuthTestApp(
     logger: false,
   });
   return { app, repositories, emails, clock };
+}
+
+export type ChatTestContext = AuthTestContext & {
+  provider: ScriptedProvider;
+  model: AIModel;
+  conversations: MemoryConversations;
+};
+
+/** An auth test app whose only model is backed by a scripted provider. */
+export async function buildChatTestApp(
+  options: { env?: ServerEnv; model?: Partial<AIModel>; services?: ServiceOverrides } = {},
+): Promise<ChatTestContext> {
+  const provider = new ScriptedProvider('scripted');
+  const model = testModel('scripted', 'fast-1', options.model);
+  const conversations = createMemoryConversations();
+  const context = await buildAuthTestApp({
+    ...(options.env ? { env: options.env } : {}),
+    services: { providers: [{ provider, models: [model] }], conversations, ...options.services },
+  });
+  return { ...context, provider, model, conversations };
 }
 
 export function cookieValue(response: LightMyRequestResponse, name: string): string | undefined {

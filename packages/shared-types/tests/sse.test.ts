@@ -40,9 +40,9 @@ describe('parseSseStream', () => {
   });
 
   it('joins multi-line data, ignores comments and keeps ids', async () => {
-    expect(await collect([': keep-alive\n', 'id: 42\ndata: line 1\ndata: line 2\n\n'])).toEqual([
-      { event: 'message', data: 'line 1\nline 2', id: '42' },
-    ]);
+    expect(
+      await collect([': OPENROUTER PROCESSING\n', 'id: 42\ndata: line 1\ndata: line 2\n\n']),
+    ).toEqual([{ event: 'message', data: 'line 1\nline 2', id: '42' }]);
   });
 
   it('flushes a final event that has no trailing blank line', async () => {

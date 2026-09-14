@@ -16,6 +16,12 @@ export function SiteHeader() {
           aria-label="Primary"
           className="hidden items-center gap-7 text-sm text-muted-foreground md:flex"
         >
+          <Link
+            to="/chat"
+            className="font-medium text-foreground transition-colors hover:text-primary"
+          >
+            Chat
+          </Link>
           <Link to="/#features" className="transition-colors hover:text-foreground">
             Features
           </Link>

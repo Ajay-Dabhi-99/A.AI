@@ -95,6 +95,26 @@ describe('providerFetch', () => {
     expect(error).toMatchObject({ name: 'AbortError', message: 'client left' });
   });
 
+  it('limits only the wait for headers, not reading the body', async () => {
+    const encoder = new TextEncoder();
+    const response = await providerFetch({
+      provider: 'test',
+      url: 'https://example.test',
+      timeoutMs: 20,
+      fetchImpl: async (_url, init) =>
+        new Response(
+          new ReadableStream({
+            async start(controller) {
+              await new Promise((resolve) => setTimeout(resolve, 60));
+              if (!init?.signal?.aborted) controller.enqueue(encoder.encode('late body'));
+              controller.close();
+            },
+          }),
+        ),
+    });
+    expect(await response.text()).toBe('late body');
+  });
+
   it('turns network failures into retryable MODEL_UNAVAILABLE', async () => {
     const error = await providerFetch({
       provider: 'down',

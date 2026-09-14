@@ -54,7 +54,8 @@ async function request(path: string, init: RequestInit = {}): Promise<Response> 
   }
 }
 
-async function toApiError(response: Response): Promise<ApiError> {
+/** Reads the error envelope from a failed response. */
+export async function toApiError(response: Response): Promise<ApiError> {
   const parsed = apiErrorBodySchema.safeParse(await response.json().catch(() => null));
   if (parsed.success) {
     const { code, message, retryable, requestId, details } = parsed.data.error;
@@ -77,7 +78,7 @@ async function toApiError(response: Response): Promise<ApiError> {
 }
 
 type RequestOptions<T> = {
-  method?: 'GET' | 'POST';
+  method?: 'GET' | 'POST' | 'DELETE';
   body?: unknown;
   /** Validates the success body. Omit for 204 responses. */
   schema?: z.ZodType<T>;

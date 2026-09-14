@@ -14,11 +14,15 @@ export type AIModelCategory = 'text' | 'vision' | 'image' | 'video' | 'audio';
 export type AIModelAvailability = 'free' | 'free-tier' | 'paid';
 
 export type AIModel = {
+  /** The provider's own model id, e.g. "openai/gpt-oss-120b". */
   id: string;
+  /** Provider key, e.g. "groq". Together with `id` it identifies a model. */
   provider: string;
   name: string;
   category: AIModelCategory;
   contextWindow: number;
+  /** Largest reply the model can produce in one response. */
+  maxOutputTokens: number;
   supportsStreaming: boolean;
   supportsVision: boolean;
   supportsTools: boolean;
@@ -38,7 +42,7 @@ export type AIUsage = {
 
 export type AIFinishReason = 'stop' | 'length' | 'content_filter' | 'cancelled' | 'unknown';
 
-export type RunStatus = 'running' | 'completed' | 'failed' | 'timeout';
+export type RunStatus = 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout';
 
 export type RunError = {
   code: ErrorCode;

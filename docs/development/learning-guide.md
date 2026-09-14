@@ -104,14 +104,48 @@ pnpm dev
 
 **Design:** [guest mode](../architecture/guest-mode.md), [auth API](../api/auth.md), [ADR-008](../decisions/ADR-008-authentication.md).
 
-## Phase 2: Single-model chat
+## Phase 2: Single-model chat (built, awaiting keys and live verification)
 
-**Goal:** chat with one model with the answer streaming in.
+**Goal:** chat with one model with the answer streaming in, saved for users and temporary for guests.
 
-- **Learn:** adapter pattern, Server-Sent Events over `fetch`, backpressure and client disconnects, persisting conversations, rendering untrusted markdown safely.
-- **Where:** `packages/ai-providers/src/{groq,openrouter,gemini}`, `apps/api/src/modules/chat`, `apps/api/src/repositories`, `apps/web/src/features/chat`.
-- **See it work:** send a message, press Stop mid-stream, kill the network and watch the retry state.
-- **Design:** [chat API](../api/chat.md), [provider abstraction](../architecture/provider-abstraction.md).
+### Concepts you learn
+
+| Concept                                               | Where to see it                                                                  |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------- |
+| One adapter, many providers (configuration over code) | `packages/ai-providers/src/openai-compatible.ts`, `catalog.ts`                   |
+| Connect timeout vs idle timeout on a stream           | `packages/ai-providers/src/http.ts`, `openai-compatible.ts`                      |
+| Parsing Server-Sent Events in Node and the browser    | `packages/shared-types/src/sse.ts`                                               |
+| Checking everything before the stream opens           | `apps/api/src/modules/chat/chat.service.ts` (`prepare`)                          |
+| Recording how every run ended, including Stop         | `chat.service.ts` (`execute`), [ADR-009](../decisions/ADR-009-chat-providers.md) |
+| Hijacking a Fastify reply to stream, keeping headers  | `apps/api/src/modules/chat/event-stream.ts`                                      |
+| Trimming history to fit a context window              | `apps/api/src/ai/context-builder.ts`                                             |
+| Idempotent data migration (guest → account)           | `ChatService.migrateGuest`, `conversation.repository.ts`                         |
+| Streaming UI state: optimistic messages, stop, retry  | `apps/web/src/features/chat/use-chat-session.ts`                                 |
+| Rendering untrusted Markdown safely                   | `apps/web/src/features/chat/markdown.tsx`                                        |
+| Relative TTLs, and why absolute expiry is fragile     | `apps/api/src/services/kv-store.ts`                                              |
+
+### Tests to read
+
+- `packages/ai-providers/tests/openai-compatible.test.ts`: every way a provider stream can go wrong.
+- `apps/api/tests/unit/chat.service.test.ts`: the outcome table, one test per row.
+- `apps/api/tests/integration/chat.test.ts`: the real SSE response, guests, users and migration.
+- `apps/web/tests/chat-page.test.tsx`: streaming, Stop, Retry, quota and hostile Markdown in the UI.
+
+### Try it (needs Supabase, Upstash and one provider key)
+
+```bash
+pnpm db:deploy
+```
+
+```bash
+pnpm dev
+```
+
+1. Open http://localhost:5180/chat as a guest and ask something. Watch the answer stream.
+2. Press **Stop** during a long answer; the partial text stays.
+3. Sign up, verify, and return to **Chat**: your guest chat is now in the sidebar.
+
+**Design:** [chat API](../api/chat.md), [models API](../api/models.md), [provider abstraction](../architecture/provider-abstraction.md).
 
 ## Phase 3: Model registry + selector
 
