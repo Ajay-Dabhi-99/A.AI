@@ -63,7 +63,15 @@ describe('link token schemas', () => {
 
 describe('meResponseSchema', () => {
   const quota = { limit: 20, used: 3, remaining: 17, resetsAt: '2026-09-14T00:00:00.000Z' };
-  const limits = { compareMaxModels: 2 };
+  const limits = {
+    compareMaxModels: 2,
+    attachments: {
+      enabled: false,
+      maxBytes: 5_242_880,
+      maxPerMessage: 4,
+      mimeTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+    },
+  };
 
   it('accepts user and guest identities', () => {
     expect(

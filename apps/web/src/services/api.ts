@@ -98,10 +98,28 @@ export async function apiRequest<T = void>(
     ...(options.signal ? { signal: options.signal } : {}),
   });
 
-  if (!response.ok) throw await toApiError(response);
-  if (!options.schema) return undefined as T;
+  return readResponse(response, options.schema);
+}
 
-  const parsed = options.schema.safeParse(await response.json().catch(() => null));
+/** multipart/form-data upload. The browser sets the content type with its boundary. */
+export async function apiUpload<T>(
+  path: string,
+  form: FormData,
+  options: { schema: z.ZodType<T>; signal?: AbortSignal },
+): Promise<T> {
+  const response = await request(path, {
+    method: 'POST',
+    body: form,
+    ...(options.signal ? { signal: options.signal } : {}),
+  });
+  return readResponse(response, options.schema);
+}
+
+async function readResponse<T>(response: Response, schema: z.ZodType<T> | undefined): Promise<T> {
+  if (!response.ok) throw await toApiError(response);
+  if (!schema) return undefined as T;
+
+  const parsed = schema.safeParse(await response.json().catch(() => null));
   if (!parsed.success) {
     throw new ApiError({
       code: 'INTERNAL_ERROR',

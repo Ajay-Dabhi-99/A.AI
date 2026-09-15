@@ -66,13 +66,29 @@ export const testUser: AuthUser = {
 export const guestMe: MeResponse = {
   identity: { kind: 'guest', expiresAt: '2026-09-14T10:00:00.000Z' },
   quota: { limit: 20, used: 0, remaining: 20, resetsAt: '2026-09-14T00:00:00.000Z' },
-  limits: { compareMaxModels: 2 },
+  limits: {
+    compareMaxModels: 2,
+    attachments: {
+      enabled: false,
+      maxBytes: 5_242_880,
+      maxPerMessage: 4,
+      mimeTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+    },
+  },
 };
 
 export const userMe: MeResponse = {
   identity: { kind: 'user', user: testUser },
   quota: { limit: 200, used: 3, remaining: 197, resetsAt: '2026-09-14T00:00:00.000Z' },
-  limits: { compareMaxModels: 4 },
+  limits: {
+    compareMaxModels: 4,
+    attachments: {
+      enabled: true,
+      maxBytes: 5_242_880,
+      maxPerMessage: 4,
+      mimeTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+    },
+  },
 };
 
 type Handler = (init: RequestInit | undefined) => Response | Promise<Response>;

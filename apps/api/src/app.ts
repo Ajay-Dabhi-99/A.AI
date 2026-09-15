@@ -1,11 +1,14 @@
 import type { ServerEnv } from '@a-ai/config/server';
 import cookie from '@fastify/cookie';
+import multipart from '@fastify/multipart';
 import Fastify, { LogController, type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import type { Redis } from 'ioredis';
 import type { PrismaClient } from './generated/prisma/client.js';
 import { registerOriginCheck } from './middleware/origin-check.js';
 import { registerApiRateLimit } from './middleware/rate-limit.js';
+import { attachmentRoutes } from './modules/attachments/attachment.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
+import { imageRoutes } from './modules/image/image.routes.js';
 import { chatRoutes } from './modules/chat/chat.routes.js';
 import { comparisonRoutes } from './modules/comparison/comparison.routes.js';
 import { historyRoutes } from './modules/history/history.routes.js';
@@ -73,7 +76,12 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   registerApiRateLimit(app);
   // Background summaries are bounded by their own timeout; let them finish before shutdown.
   app.addHook('onClose', async () => {
-    await app.services.context.idle();
+    await Promise.all([app.services.context.idle(), app.services.image.idle()]);
+  });
+
+  // Multipart is parsed only by routes that ask for it (image uploads); limits are per route too.
+  await app.register(multipart, {
+    limits: { fileSize: env.ATTACHMENT_MAX_BYTES, files: 1, fields: 0, parts: 1, headerPairs: 50 },
   });
 
   await app.register(healthRoutes, { env });
@@ -83,6 +91,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(comparisonRoutes);
   await app.register(historyRoutes);
   await app.register(modelRoutes);
+  await app.register(attachmentRoutes);
+  await app.register(imageRoutes);
 
   return app;
 }

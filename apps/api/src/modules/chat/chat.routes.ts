@@ -19,7 +19,7 @@ const conversationParamsSchema = z.object({ id: z.uuid() });
 
 export async function chatRoutes(app: FastifyInstance): Promise<void> {
   const { env, cookieNames } = app;
-  const { chat, conversations, guestChats, guests } = app.services;
+  const { chat, conversations, guestChats, guests, attachments } = app.services;
 
   /** Streams one answer as Server-Sent Events (docs/api/chat.md). */
   app.post('/api/chat', async (request, reply) => {
@@ -63,10 +63,17 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       : null;
     if (!conversation) throw new AppError('NOT_FOUND', 'This conversation does not exist.');
 
+    const messages = await conversations.listMessages(conversation.id);
+    const images = await attachments.forMessages(
+      messages.filter((message) => message.role === 'USER').map((message) => message.id),
+    );
     reply.header('cache-control', 'no-store');
     return {
       ...toConversationSummary(conversation),
-      messages: (await conversations.listMessages(conversation.id)).map(toChatMessage),
+      messages: messages.map((message) => {
+        const sent = images.get(message.id);
+        return sent ? { ...toChatMessage(message), attachments: sent } : toChatMessage(message);
+      }),
     };
   });
 

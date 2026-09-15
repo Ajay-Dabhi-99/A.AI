@@ -5,6 +5,7 @@ import { ComparisonDetailPage } from '@/pages/comparison-detail-page';
 import { ConversationRunsPage } from '@/pages/conversation-runs-page';
 import { DashboardPage } from '@/pages/dashboard-page';
 import { HistoryPage } from '@/pages/history-page';
+import { ImagePage } from '@/pages/image-page';
 import { ForgotPasswordPage } from '@/pages/forgot-password-page';
 import { LandingPage } from '@/pages/landing-page';
 import { LoginPage } from '@/pages/login-page';
@@ -35,6 +36,8 @@ export const routes: RouteObject[] = [
       { path: 'compare', element: <ComparePage /> },
       // Public catalog; admin controls appear for administrators.
       { path: 'models', element: <ModelsPage /> },
+      // Says plainly when no image provider is enabled; generating needs an account (Phase 8).
+      { path: 'image', element: <ImagePage /> },
       {
         element: <RequireUser />,
         children: [

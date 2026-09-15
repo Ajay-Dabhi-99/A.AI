@@ -23,6 +23,7 @@
     "test:live": "turbo run test:live --concurrency=1",
     "check:env": "tsx scripts/check-env.ts",
     "admin:promote": "tsx --conditions=@a-ai/source scripts/promote-admin.ts",
+    "attachments:cleanup": "tsx --conditions=@a-ai/source scripts/cleanup-attachments.ts",
     "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

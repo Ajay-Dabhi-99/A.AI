@@ -1,4 +1,5 @@
 import type { AIModel, RunStatus } from './ai.js';
+import type { Attachment } from './attachments.js';
 import type { ProviderInfo } from './models.js';
 
 /** Chat and conversation contracts (Phase 2, docs/api/chat.md). */
@@ -20,6 +21,8 @@ export type ChatMessage = {
   createdAt: string;
   /** Present on assistant replies: which model produced it and how the run ended. */
   run?: ChatMessageRun;
+  /** Images sent with a user message (Phase 8). */
+  attachments?: Attachment[];
 };
 
 export type ConversationSummary = {

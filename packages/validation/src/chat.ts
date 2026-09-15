@@ -12,6 +12,7 @@ import type {
   ProviderInfo,
 } from '@a-ai/shared-types';
 import { z } from 'zod';
+import { ATTACHMENTS_PER_MESSAGE_MAX, attachmentSchema } from './attachments.js';
 import { errorCodeSchema } from './errors.js';
 
 export const CHAT_MESSAGE_MAX_LENGTH = 16_000;
@@ -32,10 +33,20 @@ export const chatRequestSchema = z
       .max(CHAT_MESSAGE_MAX_LENGTH, `Messages can be at most ${CHAT_MESSAGE_MAX_LENGTH} characters`)
       .optional(),
     retry: z.boolean().optional(),
+    /** Uploaded images to send with a new message (Phase 8). */
+    attachmentIds: z
+      .array(z.uuid('Unknown attachment'))
+      .max(ATTACHMENTS_PER_MESSAGE_MAX, `Attach at most ${ATTACHMENTS_PER_MESSAGE_MAX} images`)
+      .refine((ids) => new Set(ids).size === ids.length, 'Attach each image only once')
+      .optional(),
   })
   .refine((body) => (body.retry === true) !== (body.message !== undefined), {
     path: ['message'],
     message: 'Send a message, or retry the previous one',
+  })
+  .refine((body) => !body.attachmentIds?.length || body.message !== undefined, {
+    path: ['attachmentIds'],
+    message: 'Images can only be sent with a new message',
   });
 
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
@@ -84,6 +95,7 @@ export const chatMessageSchema = z.object({
       fallbackFrom: z.object({ provider: z.string(), model: z.string() }).optional(),
     })
     .optional(),
+  attachments: z.array(attachmentSchema).optional(),
 }) satisfies z.ZodType<ChatMessage>;
 
 const conversationSummarySchema = z.object({

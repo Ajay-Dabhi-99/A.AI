@@ -88,6 +88,7 @@ function GuestChat() {
         defaultModel={models.data.defaultModel}
         providers={models.data.providers}
         quota={me.data?.quota}
+        attachmentLimits={me.data?.limits.attachments}
       />
     </div>
   );
@@ -143,6 +144,7 @@ function UserChat({ conversationId }: { conversationId: string | undefined }) {
         defaultModel={models.data.defaultModel}
         providers={models.data.providers}
         quota={me.data?.quota}
+        attachmentLimits={me.data?.limits.attachments}
         onConversationStarted={(id) => {
           // Update the address without remounting the panel mid-stream.
           window.history.replaceState(window.history.state, '', `/chat/${id}`);

@@ -18,7 +18,7 @@ import { createMemoryModelRegistry } from '../helpers/memory-model-registry.js';
 import { createRedisStore } from '../../src/services/kv-store.js';
 import { QuotaService } from '../../src/services/quota.service.js';
 import { AppError } from '../../src/shared/errors/app-error.js';
-import { silentLogger, TestClock } from '../helpers/fakes.js';
+import { noAttachments, silentLogger, TestClock } from '../helpers/fakes.js';
 import { createMemoryConversations } from '../helpers/memory-conversations.js';
 import { ScriptedProvider, testModel, type ScriptStep } from '../helpers/scripted-provider.js';
 import { controlledRedis } from '../helpers/test-app.js';
@@ -78,6 +78,7 @@ function setup(options: { contextWindow?: number } = {}) {
     fallbackEnabled: true,
     retryPolicy: { backoffMs: 1, rateLimitDelayMs: 1 },
     quota,
+    attachments: noAttachments,
     clock,
     logger,
   });

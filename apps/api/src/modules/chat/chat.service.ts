@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { isAIProviderError, type AIProvider } from '@a-ai/ai-core';
 import type {
+  AIImageInput,
   AIModel,
   AIUsage,
   ChatContextInfo,
@@ -40,6 +41,7 @@ import type {
 import type { QuotaService, QuotaSubject } from '../../services/quota.service.js';
 import type { Clock } from '../../shared/clock.js';
 import { AppError } from '../../shared/errors/app-error.js';
+import type { AttachmentService } from '../attachments/attachment.service.js';
 import type { GuestSession } from '../guest/guest.service.js';
 import type { GuestConversationStore } from './guest-conversation.store.js';
 import { conversationTitle, toRunStatus } from './mappers.js';
@@ -71,6 +73,8 @@ export type ChatServiceDeps = {
   context: ContextService;
   health: ProviderHealthService;
   quota: QuotaService;
+  /** Images sent with a message (Phase 8, ADR-015). */
+  attachments: Pick<AttachmentService, 'prepareForMessage' | 'attach'>;
   /** Let another healthy model answer when the chosen one fails before any text (ADR-013). */
   fallbackEnabled: boolean;
   retryPolicy?: Partial<RetryPolicy>;
@@ -104,8 +108,28 @@ export class ChatService {
   }
 
   async prepare(caller: ChatCaller, input: ChatRequest): Promise<PreparedChat> {
-    const { models, conversations, guestChats, context, health, quota, clock, logger } = this.#deps;
+    const {
+      models,
+      conversations,
+      guestChats,
+      context,
+      health,
+      quota,
+      attachments,
+      clock,
+      logger,
+    } = this.#deps;
     const { provider, model } = await models.resolve(input.provider, input.model);
+
+    // Images are checked and read before quota: a rejected image never uses up allowance.
+    const attachmentIds = input.attachmentIds ?? [];
+    let images: AIImageInput[] = [];
+    if (attachmentIds.length > 0) {
+      if (caller.kind !== 'user') {
+        throw new AppError('AUTH_REQUIRED', 'Sign up to attach images.');
+      }
+      images = (await attachments.prepareForMessage(caller.userId, attachmentIds, model)).images;
+    }
 
     let conversationId: string | null = null;
     let history: HistoryMessage[] = [];
@@ -144,7 +168,14 @@ export class ChatService {
         throw new AppError('VALIDATION_ERROR', 'There is no unanswered message to retry.');
       }
     } else {
-      history = [...history, { role: 'user', content: input.message as string }];
+      history = [
+        ...history,
+        {
+          role: 'user',
+          content: input.message as string,
+          ...(images.length > 0 ? { images } : {}),
+        },
+      ];
     }
 
     const planFor = (candidate: AIModel) => {
@@ -188,7 +219,8 @@ export class ChatService {
               title: conversationTitle(input.message as string),
             })
           ).id;
-          await conversations.addUserMessage(conversationId, input.message as string);
+          const saved = await conversations.addUserMessage(conversationId, input.message as string);
+          await attachments.attach(caller.userId, attachmentIds, saved.id);
         }
         runId = (
           await conversations.startRun({
@@ -350,8 +382,11 @@ export class ChatService {
           const down = await health
             .downProviders(available.map((candidate) => candidate.provider))
             .catch(() => new Set<string>());
-          for (const candidate of fallbackCandidates(current.model, available, (id) =>
-            down.has(id),
+          for (const candidate of fallbackCandidates(
+            current.model,
+            available,
+            (id) => down.has(id),
+            { vision: images.length > 0 },
           )) {
             if (tried.has(modelKey(candidate))) continue;
             tried.add(modelKey(candidate));

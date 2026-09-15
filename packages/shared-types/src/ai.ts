@@ -4,9 +4,17 @@ import type { ErrorCode } from './errors.js';
 
 export type AIRole = 'system' | 'user' | 'assistant';
 
+/** An image sent to a vision model (Phase 8). Base64, no data-URL prefix. */
+export type AIImageInput = {
+  mimeType: string;
+  data: string;
+};
+
 export type AIMessage = {
   role: AIRole;
   content: string;
+  /** Images for this message; only sent to models that support vision. */
+  images?: AIImageInput[];
 };
 
 export type AIModelCategory = 'text' | 'vision' | 'image' | 'video' | 'audio';

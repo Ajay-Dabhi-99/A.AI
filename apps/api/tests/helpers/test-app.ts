@@ -9,6 +9,11 @@ import type { AIModel } from '@a-ai/shared-types';
 import { CapturingEmailSender, TestClock } from './fakes.js';
 import { createMemoryComparisons, type MemoryComparisons } from './memory-comparisons.js';
 import { createMemoryConversations, type MemoryConversations } from './memory-conversations.js';
+import {
+  createMemoryAttachments,
+  createMemoryGenerationJobs,
+  createMemoryStorage,
+} from './memory-attachments.js';
 import { createMemoryHistory } from './memory-history.js';
 import { createMemoryModelRegistry } from './memory-model-registry.js';
 import { ScriptedProvider, testModel } from './scripted-provider.js';
@@ -27,7 +32,17 @@ function memoryStores(services: ServiceOverrides | undefined) {
   const conversations = (services?.conversations ??
     createMemoryConversations()) as MemoryConversations;
   const comparisons = (services?.comparisons ?? createMemoryComparisons()) as MemoryComparisons;
-  return { conversations, comparisons, history: createMemoryHistory(conversations, comparisons) };
+  return {
+    conversations,
+    comparisons,
+    history: createMemoryHistory(conversations, comparisons),
+    attachments: createMemoryAttachments(
+      (messageId) =>
+        conversations.data.messages.find((message) => message.id === messageId)?.conversationId,
+    ),
+    storage: createMemoryStorage(),
+    generationJobs: createMemoryGenerationJobs(),
+  };
 }
 
 export function testEnv(overrides: Record<string, string | undefined> = {}): ServerEnv {

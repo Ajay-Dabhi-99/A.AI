@@ -31,23 +31,26 @@ Every request goes through the platform guards: rate limit, origin check on stat
 { "provider": "groq", "model": "openai/gpt-oss-20b", "retry": true, "conversationId": "…" }
 ```
 
-| Field               | Rule                                                                    |
-| ------------------- | ----------------------------------------------------------------------- |
-| `provider`, `model` | Must match an entry in `GET /api/models`                                |
-| `message`           | 1–16,000 characters after trimming; exactly one of `message` or `retry` |
-| `retry`             | Answers the last unanswered user message again without repeating it     |
-| `conversationId`    | Users only; omit to start a new conversation. Ignored for guests.       |
+| Field               | Rule                                                                                                                                                        |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `provider`, `model` | Must match an entry in `GET /api/models`                                                                                                                    |
+| `message`           | 1–16,000 characters after trimming; exactly one of `message` or `retry`                                                                                     |
+| `retry`             | Answers the last unanswered user message again without repeating it                                                                                         |
+| `conversationId`    | Users only; omit to start a new conversation. Ignored for guests.                                                                                           |
+| `attachmentIds`     | Phase 8. Users only; up to 4 distinct uploaded images, with `message` only (not `retry`). The model must support vision. See [attachments](attachments.md). |
 
 ### Rejected before streaming (JSON errors)
 
-| Status | Code                | When                                                       |
-| ------ | ------------------- | ---------------------------------------------------------- |
-| 400    | `VALIDATION_ERROR`  | Bad body, or retry with nothing to retry                   |
-| 400    | `MODEL_UNAVAILABLE` | Model not offered by this instance                         |
-| 404    | `NOT_FOUND`         | Conversation does not exist or is not yours                |
-| 422    | `CONTEXT_TOO_LARGE` | The newest message alone cannot fit the model              |
-| 429    | `QUOTA_EXCEEDED`    | Daily allowance used up (`Retry-After` until midnight UTC) |
-| 429    | `RATE_LIMITED`      | Too many requests                                          |
+| Status | Code                | When                                                                                      |
+| ------ | ------------------- | ----------------------------------------------------------------------------------------- |
+| 400    | `VALIDATION_ERROR`  | Bad body, or retry with nothing to retry                                                  |
+| 400    | `VALIDATION_ERROR`  | Images for a model without vision, or an image that is not yours, missing or already sent |
+| 401    | `AUTH_REQUIRED`     | A guest sent `attachmentIds`                                                              |
+| 400    | `MODEL_UNAVAILABLE` | Model not offered by this instance                                                        |
+| 404    | `NOT_FOUND`         | Conversation does not exist or is not yours                                               |
+| 422    | `CONTEXT_TOO_LARGE` | The newest message alone cannot fit the model                                             |
+| 429    | `QUOTA_EXCEEDED`    | Daily allowance used up (`Retry-After` until midnight UTC)                                |
+| 429    | `RATE_LIMITED`      | Too many requests                                                                         |
 
 None of these use up allowance.
 

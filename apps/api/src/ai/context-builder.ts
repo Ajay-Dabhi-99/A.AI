@@ -14,6 +14,8 @@ export const MESSAGE_OVERHEAD_TOKENS = 4;
 /** Headroom for estimation error, as a share of the context window. */
 export const SAFETY_MARGIN_RATIO = 0.05;
 export const SUMMARY_HEADING = 'Summary of the earlier conversation:';
+/** Conservative per-image input estimate for the catalog's vision models (ADR-015 §5). */
+export const IMAGE_TOKEN_ESTIMATE = 1_500;
 
 export function estimateTokens(text: string, charsPerToken: number = CHARS_PER_TOKEN): number {
   return Math.ceil(text.length / charsPerToken);
@@ -23,7 +25,11 @@ export function estimateMessageTokens(
   message: AIMessage,
   charsPerToken: number = CHARS_PER_TOKEN,
 ): number {
-  return estimateTokens(message.content, charsPerToken) + MESSAGE_OVERHEAD_TOKENS;
+  return (
+    estimateTokens(message.content, charsPerToken) +
+    MESSAGE_OVERHEAD_TOKENS +
+    (message.images?.length ?? 0) * IMAGE_TOKEN_ESTIMATE
+  );
 }
 
 /** Tokens a request's prompt may use: the window less the safety margin and the reply. */

@@ -23,6 +23,7 @@ import type {
 } from '../../repositories/history.repository.js';
 import type { Clock } from '../../shared/clock.js';
 import { AppError } from '../../shared/errors/app-error.js';
+import type { AttachmentService } from '../attachments/attachment.service.js';
 import { toConversationSummary, toRunStatus } from '../chat/mappers.js';
 
 /** Models listed per history item. */
@@ -37,6 +38,7 @@ export type UsageScopeInput = { kind: 'personal'; userId: string } | { kind: 'de
 export type HistoryServiceDeps = {
   history: HistoryRepository;
   conversations: ConversationRepository;
+  attachments: Pick<AttachmentService, 'keysForConversation' | 'removeObjects'>;
   clock: Clock;
   logger: FastifyBaseLogger;
 };
@@ -254,10 +256,14 @@ export class HistoryService {
   }
 
   async delete(userId: string, kind: HistoryKindValue, id: string): Promise<void> {
+    // Image objects are listed before the rows (and their attachment rows) cascade away.
+    const imageKeys =
+      kind === 'conversation' ? await this.#deps.attachments.keysForConversation(id, userId) : [];
     const deleted =
       kind === 'conversation'
         ? await this.#deps.history.deleteConversation(id, userId)
         : await this.#deps.history.deleteComparison(id, userId);
+    if (deleted) await this.#deps.attachments.removeObjects(imageKeys, 'conversation-deleted');
     if (!deleted) {
       throw new AppError(
         'NOT_FOUND',

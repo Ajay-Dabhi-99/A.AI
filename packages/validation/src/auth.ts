@@ -6,6 +6,7 @@ import type {
   QuotaSummary,
 } from '@a-ai/shared-types';
 import { z } from 'zod';
+import { attachmentLimitsSchema } from './attachments.js';
 
 /**
  * Auth request and response schemas. The API validates requests with these
@@ -84,7 +85,10 @@ export const meResponseSchema = z.object({
     z.object({ kind: z.literal('guest'), expiresAt: z.string() }),
   ]),
   quota: quotaSummarySchema,
-  limits: z.object({ compareMaxModels: z.number().int().positive() }),
+  limits: z.object({
+    compareMaxModels: z.number().int().positive(),
+    attachments: attachmentLimitsSchema,
+  }),
 }) satisfies z.ZodType<MeResponse>;
 
 export const authUserResponseSchema = z.object({

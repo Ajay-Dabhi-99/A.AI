@@ -47,7 +47,23 @@ import {
   createPrismaHistoryRepository,
   type HistoryRepository,
 } from '../repositories/history.repository.js';
+import type { ImageGenerationProvider } from '@a-ai/ai-core';
+import { AttachmentService } from '../modules/attachments/attachment.service.js';
+import { ImageGenerationService } from '../modules/image/image-generation.service.js';
+import {
+  createPrismaAttachmentRepository,
+  type AttachmentRepository,
+} from '../repositories/attachment.repository.js';
+import {
+  createPrismaGenerationJobRepository,
+  type GenerationJobRepository,
+} from '../repositories/generation-job.repository.js';
 import { ContextService } from './context.service.js';
+import {
+  createSupabaseStorage,
+  disabledStorage,
+  type ObjectStorage,
+} from './storage/object-storage.js';
 import { createEmailSender, type EmailSender } from './email/email-sender.js';
 import { createRedisStore, type KeyValueStore } from './kv-store.js';
 import { QuotaService } from './quota.service.js';
@@ -80,6 +96,10 @@ export type AppServices = {
   comparison: ComparisonService;
   /** Saved history, run detail and usage analytics (Phase 7). */
   history: HistoryService;
+  /** Image uploads in private object storage (Phase 8). */
+  attachments: AttachmentService;
+  /** Image-generation jobs; disabled while no image provider is registered (Phase 8). */
+  image: ImageGenerationService;
   email: EmailSender;
   clock: Clock;
   /** JWT_SECRET: keys every HMAC (sessions, links, IPs, emails). */
@@ -109,7 +129,24 @@ export type ServiceOverrides = {
   /** Shorter chat retry delays, so tests need not wait for real backoff. */
   retryPolicy?: Partial<RetryPolicy>;
   history?: HistoryRepository;
+  attachments?: AttachmentRepository;
+  /** Replaces Supabase Storage (or the disabled storage when it is not configured). */
+  storage?: ObjectStorage;
+  generationJobs?: GenerationJobRepository;
+  /** Image providers; production registers none in Phase 8. */
+  imageProviders?: ImageGenerationProvider[];
+  imageJobTimeoutMs?: number;
 };
+
+function storageFromEnv(env: ServerEnv): ObjectStorage {
+  return env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY
+    ? createSupabaseStorage({
+        url: env.SUPABASE_URL,
+        serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,
+        bucket: env.SUPABASE_STORAGE_BUCKET,
+      })
+    : disabledStorage;
+}
 
 export function createServices(input: {
   env: ServerEnv;
@@ -164,6 +201,18 @@ export function createServices(input: {
     logger,
   });
 
+  const rateLimiter = new RateLimiter(store);
+  const rateLimits = { ...RATE_LIMITS, ...overrides.rateLimits };
+  const attachments = new AttachmentService({
+    repository: overrides.attachments ?? createPrismaAttachmentRepository(prisma),
+    storage: overrides.storage ?? storageFromEnv(env),
+    rateLimiter,
+    uploadRule: rateLimits.uploadByUser,
+    maxBytes: env.ATTACHMENT_MAX_BYTES,
+    clock,
+    logger,
+  });
+
   const sessions = new SessionService({
     sessions: repositories.sessions,
     secret: env.JWT_SECRET,
@@ -176,8 +225,8 @@ export function createServices(input: {
     conversations,
     comparisons,
     store,
-    rateLimiter: new RateLimiter(store),
-    rateLimits: { ...RATE_LIMITS, ...overrides.rateLimits },
+    rateLimiter,
+    rateLimits,
     quota,
     guests: new GuestService(store, env.GUEST_SESSION_TTL_MINUTES, clock),
     guestChats,
@@ -205,6 +254,7 @@ export function createServices(input: {
       context,
       health,
       quota,
+      attachments,
       fallbackEnabled: env.CHAT_FALLBACK_ENABLED,
       ...(overrides.retryPolicy ? { retryPolicy: overrides.retryPolicy } : {}),
       clock,
@@ -227,8 +277,23 @@ export function createServices(input: {
     history: new HistoryService({
       history: overrides.history ?? createPrismaHistoryRepository(prisma),
       conversations,
+      attachments,
       clock,
       logger,
+    }),
+    attachments,
+    image: new ImageGenerationService({
+      providers: overrides.imageProviders ?? [],
+      jobs: overrides.generationJobs ?? createPrismaGenerationJobRepository(prisma),
+      attachments,
+      store,
+      rateLimiter,
+      rule: rateLimits.imageByUser,
+      clock,
+      logger,
+      ...(overrides.imageJobTimeoutMs === undefined
+        ? {}
+        : { timeoutMs: overrides.imageJobTimeoutMs }),
     }),
     email,
     clock,

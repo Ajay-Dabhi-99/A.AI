@@ -139,7 +139,7 @@ describe('POST /api/compare as a guest', () => {
     const status = await me(ctx, { [GUEST]: guest });
     // The failed model's message was given back.
     expect(status.quota.used).toBe(1);
-    expect(status.limits).toEqual({ compareMaxModels: 2 });
+    expect(status.limits).toMatchObject({ compareMaxModels: 2 });
   });
 
   it('returns JSON errors before streaming and uses no allowance', async () => {
@@ -211,7 +211,7 @@ describe('POST /api/compare as a signed-in user', () => {
     const session = await signedInUser(ctx);
     const cookies = { [SESSION]: session };
 
-    expect((await me(ctx, cookies)).limits).toEqual({ compareMaxModels: 4 });
+    expect((await me(ctx, cookies)).limits).toMatchObject({ compareMaxModels: 4 });
 
     const stream = events(await compare(ctx, { models: [ALPHA, BETA, GAMMA] }, cookies));
     const { comparisonId } = startOf(stream);

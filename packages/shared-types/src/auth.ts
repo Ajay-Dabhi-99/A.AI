@@ -1,3 +1,5 @@
+import type { AttachmentLimits } from './attachments.js';
+
 /** Authentication and identity contracts (Phase 1, docs/api/auth.md). */
 
 export type UserRole = 'user' | 'admin';
@@ -31,6 +33,8 @@ export type Identity = { kind: 'user'; user: AuthUser } | { kind: 'guest'; expir
 export type IdentityLimits = {
   /** Most models one comparison may run (Phase 4). */
   compareMaxModels: number;
+  /** Image uploads (Phase 8). */
+  attachments: AttachmentLimits;
 };
 
 /** GET /api/me */

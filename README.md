@@ -49,18 +49,19 @@ Ports 4000/5180 avoid clashing with other local projects on 3000/5000/5173.
 
 ## Scripts
 
-| Command                 | What it does                                                                 |
-| ----------------------- | ---------------------------------------------------------------------------- |
-| `pnpm dev`              | API (watch mode) and web dev server together                                 |
-| `pnpm verify`           | Format check, lint, typecheck, unit + integration tests, build               |
-| `pnpm test:unit`        | Fast unit tests across every workspace                                       |
-| `pnpm test:integration` | Fastify routes end-to-end with controlled DB/Redis adapters                  |
-| `pnpm test:live`        | Real Supabase + Upstash checks (needs `TEST_DATABASE_URL`, `TEST_REDIS_URL`) |
-| `pnpm check:env`        | Validates `.env` without printing any values                                 |
-| `pnpm db:migrate`       | Create and apply a Prisma migration (development)                            |
-| `pnpm db:deploy`        | Apply pending migrations (CI / production)                                   |
-| `pnpm db:seed`          | Insert default models into the registry (never overwrites edits)             |
-| `pnpm admin:promote`    | `pnpm admin:promote <email> [--revoke]`: grant or remove the admin role      |
+| Command                    | What it does                                                                 |
+| -------------------------- | ---------------------------------------------------------------------------- |
+| `pnpm dev`                 | API (watch mode) and web dev server together                                 |
+| `pnpm verify`              | Format check, lint, typecheck, unit + integration tests, build               |
+| `pnpm test:unit`           | Fast unit tests across every workspace                                       |
+| `pnpm test:integration`    | Fastify routes end-to-end with controlled DB/Redis adapters                  |
+| `pnpm test:live`           | Real Supabase + Upstash checks (needs `TEST_DATABASE_URL`, `TEST_REDIS_URL`) |
+| `pnpm check:env`           | Validates `.env` without printing any values                                 |
+| `pnpm db:migrate`          | Create and apply a Prisma migration (development)                            |
+| `pnpm db:deploy`           | Apply pending migrations (CI / production)                                   |
+| `pnpm db:seed`             | Insert default models into the registry (never overwrites edits)             |
+| `pnpm admin:promote`       | `pnpm admin:promote <email> [--revoke]`: grant or remove the admin role      |
+| `pnpm attachments:cleanup` | Remove image uploads never sent within 24 hours (schedule daily)             |
 
 ## Repository layout
 

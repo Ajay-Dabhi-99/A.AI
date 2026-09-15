@@ -93,6 +93,17 @@ export const serverEnvSchema = z
       .enum(['true', 'false'])
       .default('true')
       .transform((value) => value === 'true'),
+    /** Supabase project URL for Storage (Phase 8). With the key, enables image uploads. */
+    SUPABASE_URL: optionalString.pipe(originSchema.optional()),
+    /** Server-side only. Never expose it to the web app. */
+    SUPABASE_SERVICE_ROLE_KEY: optionalString,
+    SUPABASE_STORAGE_BUCKET: z
+      .string()
+      .trim()
+      .regex(/^[a-z0-9][a-z0-9-]{1,62}$/, 'lowercase letters, digits and hyphens')
+      .default('a-ai-attachments'),
+    /** Largest accepted image upload, in bytes (100 KiB to 20 MiB, default 5 MiB). */
+    ATTACHMENT_MAX_BYTES: z.coerce.number().int().min(102_400).max(20_971_520).default(5_242_880),
     /** Let another healthy model answer when the chosen one fails before sending text (ADR-013). */
     CHAT_FALLBACK_ENABLED: z
       .enum(['true', 'false'])
@@ -114,6 +125,14 @@ export const serverEnvSchema = z
     GROQ_API_KEY: optionalString,
   })
   .superRefine((env, ctx) => {
+    // Storage needs both or neither: half a configuration would fail on the first upload.
+    if ((env.SUPABASE_URL === undefined) !== (env.SUPABASE_SERVICE_ROLE_KEY === undefined)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: [env.SUPABASE_URL === undefined ? 'SUPABASE_URL' : 'SUPABASE_SERVICE_ROLE_KEY'],
+        message: 'set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY together (or neither)',
+      });
+    }
     if (env.NODE_ENV !== 'production') return;
 
     if (!env.REDIS_URL.startsWith('rediss://')) {

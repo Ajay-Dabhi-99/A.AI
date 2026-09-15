@@ -12,7 +12,7 @@ import { ProviderHealthService } from '../../src/providers/provider-health.servi
 import { ContextService } from '../../src/services/context.service.js';
 import { createRedisStore } from '../../src/services/kv-store.js';
 import { QuotaService } from '../../src/services/quota.service.js';
-import { silentLogger, TestClock } from '../helpers/fakes.js';
+import { noAttachments, silentLogger, TestClock } from '../helpers/fakes.js';
 import { createMemoryConversations } from '../helpers/memory-conversations.js';
 import { createMemoryModelRegistry } from '../helpers/memory-model-registry.js';
 import { ScriptedProvider, testModel, type ScriptStep } from '../helpers/scripted-provider.js';
@@ -68,6 +68,7 @@ function setup(options: { summariesEnabled?: boolean; summarizer?: ConversationS
     health: new ProviderHealthService({ store, clock }),
     fallbackEnabled: true,
     quota: new QuotaService(store, { guest: 50, user: 50 }, clock),
+    attachments: noAttachments,
     clock,
     logger,
   });

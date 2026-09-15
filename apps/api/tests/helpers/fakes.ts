@@ -1,5 +1,6 @@
 import type { FastifyBaseLogger } from 'fastify';
 import { vi } from 'vitest';
+import type { ChatServiceDeps } from '../../src/modules/chat/chat.service.js';
 import type { EmailSender } from '../../src/services/email/email-sender.js';
 import type { EmailMessage } from '../../src/services/email/templates.js';
 import type { Clock } from '../../src/shared/clock.js';
@@ -51,6 +52,12 @@ export class TestClock implements Clock {
 export const fakeHasher: PasswordHasher = {
   hash: async (password) => `fake-hash:${password}`,
   verify: async (passwordHash, password) => passwordHash === `fake-hash:${password}`,
+};
+
+/** Chat without images: services that never see attachment ids. */
+export const noAttachments: ChatServiceDeps['attachments'] = {
+  prepareForMessage: async () => ({ attachments: [], images: [] }),
+  attach: async () => undefined,
 };
 
 export function silentLogger(): FastifyBaseLogger & {

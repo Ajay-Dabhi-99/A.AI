@@ -27,6 +27,8 @@ model User {
   authTokens      AuthToken[]
   conversations   Conversation[]
   comparisons     Comparison[]
+  attachments     Attachment[]
+  generationJobs  GenerationJob[]
 
   @@map("users")
 }
@@ -109,9 +111,69 @@ model Message {
   createdAt      DateTime     @default(now()) @db.Timestamptz(3)
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   run            ModelRun?
+  attachments    Attachment[]
 
   @@index([conversationId, createdAt])
   @@map("messages")
+}
+
+/// An image the user uploaded or a job generated (Phase 8, ADR-015). The bytes are in
+/// private object storage at storageKey; only the owner reads them, through signed URLs.
+/// messageId is null until the image is sent with a message.
+model Attachment {
+  id         String         @id @default(uuid()) @db.Uuid
+  userId     String         @db.Uuid
+  messageId  String?        @db.Uuid
+  kind       String         @default("image") @db.VarChar(16)
+  source     String         @default("upload") @db.VarChar(16)
+  mimeType   String         @db.VarChar(32)
+  sizeBytes  Int
+  width      Int
+  height     Int
+  sha256     String         @db.VarChar(64)
+  fileName   String?        @db.VarChar(120)
+  storageKey String         @unique @db.VarChar(200)
+  createdAt  DateTime       @default(now()) @db.Timestamptz(3)
+  attachedAt DateTime?      @db.Timestamptz(3)
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message    Message?       @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  job        GenerationJob?
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([messageId])
+  @@map("attachments")
+}
+
+enum GenerationJobStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+
+  @@map("generation_job_status")
+}
+
+/// An asynchronous image generation (Phase 8, ADR-015 §6). The result is an attachment.
+model GenerationJob {
+  id           String              @id @default(uuid()) @db.Uuid
+  userId       String              @db.Uuid
+  kind         String              @default("image") @db.VarChar(16)
+  provider     String              @db.VarChar(32)
+  model        String              @db.VarChar(128)
+  prompt       String              @db.Text
+  status       GenerationJobStatus @default(QUEUED)
+  errorCode    String?             @db.VarChar(64)
+  attachmentId String?             @unique @db.Uuid
+  createdAt    DateTime            @default(now()) @db.Timestamptz(3)
+  startedAt    DateTime?           @db.Timestamptz(3)
+  completedAt  DateTime?           @db.Timestamptz(3)
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attachment   Attachment?         @relation(fields: [attachmentId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status, createdAt])
+  @@map("generation_jobs")
 }
 
 enum RunStatus {

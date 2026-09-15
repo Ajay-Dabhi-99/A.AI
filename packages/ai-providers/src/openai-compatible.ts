@@ -5,7 +5,7 @@ import {
   type AIResponse,
   type AIStreamChunk,
 } from '@a-ai/ai-core';
-import type { AIFinishReason, AIModel, AIUsage } from '@a-ai/shared-types';
+import type { AIFinishReason, AIMessage, AIModel, AIUsage } from '@a-ai/shared-types';
 import { classifyHttpStatus, providerFetch } from './http.js';
 import { parseSseStream } from './sse.js';
 
@@ -38,6 +38,32 @@ type CompletionChunk = {
   /** OpenRouter reports mid-stream failures here with finish_reason "error". */
   error?: { message?: string; code?: number | string };
 };
+
+type WireContentPart =
+  { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
+
+/**
+ * Plain messages keep string content. A message with images uses the content
+ * parts every OpenAI-compatible vision endpoint accepts, images as data URLs.
+ */
+export function toWireMessages(
+  messages: AIMessage[],
+): { role: AIMessage['role']; content: string | WireContentPart[] }[] {
+  return messages.map(({ role, content, images }) =>
+    images?.length
+      ? {
+          role,
+          content: [
+            ...(content ? [{ type: 'text' as const, text: content }] : []),
+            ...images.map((image) => ({
+              type: 'image_url' as const,
+              image_url: { url: `data:${image.mimeType};base64,${image.data}` },
+            })),
+          ],
+        }
+      : { role, content },
+  );
+}
 
 function toFinishReason(value: string): AIFinishReason {
   if (value === 'stop' || value === 'length' || value === 'content_filter') return value;
@@ -106,7 +132,7 @@ export class OpenAICompatibleProvider implements AIProvider {
         },
         body: JSON.stringify({
           model: request.model,
-          messages: request.messages,
+          messages: toWireMessages(request.messages),
           stream: true,
           stream_options: { include_usage: true },
           ...(request.temperature === undefined ? {} : { temperature: request.temperature }),

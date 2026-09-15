@@ -42,7 +42,9 @@ export type ContextServiceDeps = {
   logger: FastifyBaseLogger;
 };
 
-const toAIMessage = ({ role, content }: AIMessage): AIMessage => ({ role, content });
+/** Images travel only with the message they were sent with (ADR-015 §5). */
+const toAIMessage = ({ role, content, images }: AIMessage): AIMessage =>
+  images?.length ? { role, content, images } : { role, content };
 
 function guestContextKey(guestId: string): string {
   return `context:guest:${guestId}`;
@@ -118,6 +120,7 @@ export class ContextService {
     const uncovered = recent
       .slice(0, context.droppedMessages)
       .filter((message): message is AIMessage & { id: string } => typeof message.id === 'string')
+      // Summaries are text only.
       .map(({ id, role, content }) => ({ id, role, content }));
 
     return { context, charsPerToken, summary: applied, uncovered };
@@ -139,7 +142,9 @@ export class ContextService {
     const { scope, provider, model, plan, providerInputTokens } = input;
     const { tokens, logger, summariesEnabled } = this.#deps;
 
-    if (providerInputTokens !== null) {
+    // Image tokens are not text: calibrating on them would skew the characters-per-token ratio.
+    const hasImages = plan.context.messages.some((message) => (message.images?.length ?? 0) > 0);
+    if (providerInputTokens !== null && !hasImages) {
       const characters = plan.context.messages.reduce(
         (sum, message) => sum + message.content.length,
         0,

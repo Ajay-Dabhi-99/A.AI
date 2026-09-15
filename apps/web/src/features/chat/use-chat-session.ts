@@ -1,4 +1,10 @@
-import type { ChatContextInfo, ChatMessage, ChatStreamEvent, RunError } from '@a-ai/shared-types';
+import type {
+  Attachment,
+  ChatContextInfo,
+  ChatMessage,
+  ChatStreamEvent,
+  RunError,
+} from '@a-ai/shared-types';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { ME_QUERY_KEY } from '@/hooks/use-me';
@@ -39,7 +45,11 @@ export function useChatSession(options: {
   const conversationRef = useRef(options.conversationId);
   const abortRef = useRef<AbortController | null>(null);
 
-  async function run(model: ModelRef, message: string | null): Promise<boolean> {
+  async function run(
+    model: ModelRef,
+    message: string | null,
+    attachments: Attachment[] = [],
+  ): Promise<boolean> {
     const controller = new AbortController();
     abortRef.current = controller;
     const now = new Date().toISOString();
@@ -53,7 +63,15 @@ export function useChatSession(options: {
     setMessages((current) => [
       ...current,
       ...(message && userId
-        ? [{ id: userId, role: 'user' as const, content: message, createdAt: now }]
+        ? [
+            {
+              id: userId,
+              role: 'user' as const,
+              content: message,
+              createdAt: now,
+              ...(attachments.length > 0 ? { attachments } : {}),
+            },
+          ]
         : []),
       {
         id: answerId,
@@ -123,6 +141,9 @@ export function useChatSession(options: {
           provider: model.provider,
           model: model.id,
           ...(message ? { message } : { retry: true }),
+          ...(attachments.length > 0
+            ? { attachmentIds: attachments.map((attachment) => attachment.id) }
+            : {}),
           ...(!options.isGuest && conversationRef.current
             ? { conversationId: conversationRef.current }
             : {}),
@@ -185,7 +206,8 @@ export function useChatSession(options: {
     failure,
     context,
     /** Resolves false when the message was rejected before the answer started (the draft should be restored). */
-    send: (model: ModelRef, text: string) => run(model, text),
+    send: (model: ModelRef, text: string, attachments: Attachment[] = []) =>
+      run(model, text, attachments),
     retry: (model: ModelRef) => run(model, null),
     stop: () => abortRef.current?.abort(new DOMException('Stopped by the user', 'AbortError')),
     dismissFailure: () => setFailure(null),

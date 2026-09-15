@@ -1,5 +1,7 @@
 import type {
   AIModel,
+  Attachment,
+  AttachmentLimits,
   ChatContextInfo,
   ChatMessage,
   ProviderInfo,
@@ -49,6 +51,7 @@ export function ChatPanel({
   providers,
   defaultModel,
   quota,
+  attachmentLimits,
   onConversationStarted,
 }: {
   isGuest: boolean;
@@ -58,6 +61,8 @@ export function ChatPanel({
   providers: ProviderInfo[];
   defaultModel: { provider: string; id: string } | null;
   quota: QuotaSummary | undefined;
+  /** Image upload limits from /api/me (Phase 8). */
+  attachmentLimits?: AttachmentLimits | undefined;
   onConversationStarted?: (conversationId: string) => void;
 }) {
   const session = useChatSession({
@@ -79,7 +84,8 @@ export function ChatPanel({
     if (nearBottom || lastMessage?.role === 'user') list.scrollTop = list.scrollHeight;
   }, [lastMessage?.id, lastMessage?.content, lastMessage?.role]);
 
-  const send = (text: string) => (model ? session.send(model, text) : Promise.resolve(false));
+  const send = (text: string, attachments: Attachment[] = []) =>
+    model ? session.send(model, text, attachments) : Promise.resolve(false);
   const { failure } = session;
 
   return (
@@ -165,6 +171,8 @@ export function ChatPanel({
           disabled={models.length === 0}
           onSend={send}
           onStop={session.stop}
+          attachmentLimits={attachmentLimits}
+          isGuest={isGuest}
           footer={
             quota || session.context ? (
               <span>

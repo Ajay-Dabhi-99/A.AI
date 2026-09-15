@@ -24,6 +24,7 @@ function setup() {
   const service = new HistoryService({
     history: createMemoryHistory(conversations, comparisons),
     conversations,
+    attachments: { keysForConversation: async () => [], removeObjects: async () => undefined },
     clock,
     logger: silentLogger(),
   });
