@@ -9,6 +9,8 @@ export type ChatMessageRun = {
   status: RunStatus;
   latencyMs?: number;
   errorCode?: string;
+  /** The model the user chose, when another model answered because it was unavailable (Phase 6). */
+  fallbackFrom?: { provider: string; model: string };
 };
 
 export type ChatMessage = {

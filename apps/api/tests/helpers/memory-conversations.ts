@@ -46,6 +46,27 @@ export function createMemoryConversations(): MemoryConversations {
     };
   };
 
+  const newRun = (
+    fields: Pick<RunRecord, 'conversationId' | 'provider' | 'model' | 'status'> &
+      Partial<RunRecord>,
+  ): RunRecord => ({
+    id: randomUUID(),
+    messageId: null,
+    ttftMs: null,
+    latencyMs: null,
+    inputTokens: null,
+    outputTokens: null,
+    usageSource: null,
+    errorCode: null,
+    requestedProvider: null,
+    requestedModel: null,
+    attemptCount: 1,
+    fallbackReason: null,
+    createdAt: now(),
+    completedAt: null,
+    ...fields,
+  });
+
   return {
     data,
 
@@ -90,22 +111,7 @@ export function createMemoryConversations(): MemoryConversations {
     },
 
     startRun: async ({ conversationId, provider, model }) => {
-      const run: RunRecord = {
-        id: randomUUID(),
-        conversationId,
-        messageId: null,
-        provider,
-        model,
-        status: 'RUNNING',
-        ttftMs: null,
-        latencyMs: null,
-        inputTokens: null,
-        outputTokens: null,
-        usageSource: null,
-        errorCode: null,
-        createdAt: now(),
-        completedAt: null,
-      };
+      const run = newRun({ conversationId, provider, model, status: 'RUNNING' });
       data.runs.push(run);
       return { ...run };
     },
@@ -124,6 +130,7 @@ export function createMemoryConversations(): MemoryConversations {
         };
         data.messages.push(message);
       }
+      const { fallback } = completion;
       Object.assign(run, {
         status: completion.status,
         messageId: message?.id ?? null,
@@ -134,6 +141,16 @@ export function createMemoryConversations(): MemoryConversations {
         usageSource: completion.usageSource,
         errorCode: completion.errorCode,
         estimatedCostUsd: completion.estimatedCostUsd,
+        attemptCount: completion.attemptCount ?? 1,
+        ...(fallback
+          ? {
+              provider: fallback.provider,
+              model: fallback.model,
+              requestedProvider: fallback.requestedProvider,
+              requestedModel: fallback.requestedModel,
+              fallbackReason: fallback.reason,
+            }
+          : {}),
         completedAt: completion.completedAt,
       });
       touch(completion.conversationId, completion.completedAt);
@@ -169,22 +186,20 @@ export function createMemoryConversations(): MemoryConversations {
         };
         data.messages.push(message);
         if (imported.run) {
-          data.runs.push({
-            id: randomUUID(),
-            conversationId: conversation.id,
-            messageId: message.id,
-            provider: imported.run.provider,
-            model: imported.run.model,
-            status: imported.run.status,
-            ttftMs: null,
-            latencyMs: imported.run.latencyMs ?? null,
-            inputTokens: null,
-            outputTokens: null,
-            usageSource: null,
-            errorCode: null,
-            createdAt: imported.createdAt,
-            completedAt: imported.createdAt,
-          });
+          data.runs.push(
+            newRun({
+              conversationId: conversation.id,
+              messageId: message.id,
+              provider: imported.run.provider,
+              model: imported.run.model,
+              status: imported.run.status,
+              latencyMs: imported.run.latencyMs ?? null,
+              requestedProvider: imported.run.fallbackFrom?.provider ?? null,
+              requestedModel: imported.run.fallbackFrom?.model ?? null,
+              createdAt: imported.createdAt,
+              completedAt: imported.createdAt,
+            }),
+          );
         }
       }
       return { conversation: { ...conversation }, created: true };

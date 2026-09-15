@@ -10,19 +10,23 @@ export function toRunStatus(status: RunStatusValue): RunStatus {
 }
 
 export function toChatMessage(record: MessageRecord): ChatMessage {
+  const run = record.run;
   return {
     id: record.id,
     role: record.role === 'USER' ? 'user' : 'assistant',
     content: record.content,
     createdAt: record.createdAt.toISOString(),
-    ...(record.run
+    ...(run
       ? {
           run: {
-            provider: record.run.provider,
-            model: record.run.model,
-            status: toRunStatus(record.run.status),
-            ...(record.run.latencyMs === null ? {} : { latencyMs: record.run.latencyMs }),
-            ...(record.run.errorCode === null ? {} : { errorCode: record.run.errorCode }),
+            provider: run.provider,
+            model: run.model,
+            status: toRunStatus(run.status),
+            ...(run.latencyMs === null ? {} : { latencyMs: run.latencyMs }),
+            ...(run.errorCode === null ? {} : { errorCode: run.errorCode }),
+            ...(run.requestedProvider !== null && run.requestedModel !== null
+              ? { fallbackFrom: { provider: run.requestedProvider, model: run.requestedModel } }
+              : {}),
           },
         }
       : {}),

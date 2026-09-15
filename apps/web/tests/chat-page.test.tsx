@@ -161,6 +161,46 @@ describe('chat page as a guest', () => {
     });
   });
 
+  it('labels a reply that another model answered', async () => {
+    mockApi(
+      guestRoutes({
+        'POST /api/chat': (init) =>
+          sse(
+            [
+              START,
+              [
+                'message.retry',
+                { runId: 'r1', attempt: 2, delayMs: 500, code: 'PROVIDER_TIMEOUT' },
+              ],
+              [
+                'message.fallback',
+                {
+                  runId: 'r1',
+                  from: { provider: 'groq', model: 'openai/gpt-oss-20b' },
+                  to: { provider: 'gemini', model: 'gemini-3.8-flash' },
+                  code: 'PROVIDER_TIMEOUT',
+                  reason: 'Groq did not respond',
+                },
+              ],
+              ['message.delta', { runId: 'r1', text: 'Gemini here.' }],
+              DONE,
+            ],
+            init,
+          ),
+      }),
+    );
+    renderApp('/chat');
+    await screen.findByRole('heading', { name: 'What would you like to ask?' });
+
+    typeAndSend('Hello?');
+
+    expect(await screen.findByText('Gemini here.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Answered by Gemini 3.8 Flash because GPT-OSS 20B was unavailable.'),
+    ).toBeInTheDocument();
+    expect(await screen.findByText('Gemini 3.8 Flash · 1.2s')).toBeInTheDocument();
+  });
+
   it('remembers the chosen model and sends the next message with it', async () => {
     const api = mockApi(guestRoutes({ 'POST /api/chat': (init) => sse([START, DONE], init) }));
     renderApp('/chat');

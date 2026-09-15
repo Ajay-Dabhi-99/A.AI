@@ -6,7 +6,11 @@ import { ApiError, NetworkError } from '@/services/api';
 import { streamChat } from '@/services/chat';
 import type { ModelRef } from '@/stores/model-store';
 
-export type UiMessage = ChatMessage & { pending?: boolean };
+export type UiMessage = ChatMessage & {
+  pending?: boolean;
+  /** Shown while waiting: the server is retrying after a temporary provider error. */
+  notice?: 'retrying' | null;
+};
 
 export type ChatFailure = RunError & {
   /** True when the server had accepted the message, so retrying will not repeat it. */
@@ -41,6 +45,7 @@ export function useChatSession(options: {
     const now = new Date().toISOString();
     const userId = message ? `local-${crypto.randomUUID()}` : null;
     const answerId = `pending-${crypto.randomUUID()}`;
+    const requested = { provider: model.provider, model: model.id };
     let accepted = false;
 
     setFailure(null);
@@ -56,7 +61,7 @@ export function useChatSession(options: {
         content: '',
         createdAt: now,
         pending: true,
-        run: { provider: model.provider, model: model.id, status: 'running' },
+        run: { ...requested, status: 'running' },
       },
     ]);
 
@@ -64,6 +69,8 @@ export function useChatSession(options: {
       setMessages((current) => current.map((item) => (item.id === answerId ? change(item) : item)));
     const removeAnswer = () =>
       setMessages((current) => current.filter((item) => item.id !== answerId));
+    /** The run as it stands (the answering model may have changed after a fallback). */
+    const runOf = (answer: UiMessage) => answer.run ?? { ...requested, status: 'running' as const };
 
     const onEvent = (event: ChatStreamEvent) => {
       if (event.event === 'message.start') {
@@ -74,15 +81,34 @@ export function useChatSession(options: {
           conversationRef.current = conversationId;
           options.onConversationStarted?.(conversationId);
         }
+      } else if (event.event === 'message.retry') {
+        updateAnswer((answer) => ({ ...answer, notice: 'retrying' }));
+      } else if (event.event === 'message.fallback') {
+        const { to } = event.data;
+        updateAnswer((answer) => ({
+          ...answer,
+          notice: null,
+          run: {
+            ...runOf(answer),
+            provider: to.provider,
+            model: to.model,
+            fallbackFrom: requested,
+          },
+        }));
       } else if (event.event === 'message.delta') {
-        updateAnswer((answer) => ({ ...answer, content: answer.content + event.data.text }));
+        updateAnswer((answer) => ({
+          ...answer,
+          notice: null,
+          content: answer.content + event.data.text,
+        }));
       } else if (event.event === 'message.done') {
         const { status, latencyMs, messageId } = event.data;
         updateAnswer((answer) => ({
           ...answer,
           id: messageId ?? answer.id,
           pending: false,
-          run: { provider: model.provider, model: model.id, status, latencyMs },
+          notice: null,
+          run: { ...runOf(answer), status, latencyMs },
         }));
       } else if (event.event === 'error') {
         // The server keeps no partial answer on failure, so neither does the UI.
@@ -113,7 +139,8 @@ export function useChatSession(options: {
         updateAnswer((answer) => ({
           ...answer,
           pending: false,
-          run: { provider: model.provider, model: model.id, status: 'cancelled' },
+          notice: null,
+          run: { ...runOf(answer), status: 'cancelled' },
         }));
         return true;
       }

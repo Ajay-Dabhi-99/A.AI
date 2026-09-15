@@ -93,6 +93,11 @@ export const serverEnvSchema = z
       .enum(['true', 'false'])
       .default('true')
       .transform((value) => value === 'true'),
+    /** Let another healthy model answer when the chosen one fails before sending text (ADR-013). */
+    CHAT_FALLBACK_ENABLED: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
 
     /** Sender shown in emails, e.g. `A.ai <no-reply@your-domain.com>`. */
     EMAIL_FROM: z

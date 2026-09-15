@@ -81,6 +81,7 @@ export const chatMessageSchema = z.object({
       status: runStatusSchema,
       latencyMs: z.number().int().nonnegative().optional(),
       errorCode: z.string().optional(),
+      fallbackFrom: z.object({ provider: z.string(), model: z.string() }).optional(),
     })
     .optional(),
 }) satisfies z.ZodType<ChatMessage>;
@@ -131,6 +132,19 @@ export const chatStreamEventSchemas = {
     }),
   }),
   'message.delta': z.object({ runId: z.string(), text: z.string() }),
+  'message.retry': z.object({
+    runId: z.string(),
+    attempt: z.number().int().positive(),
+    delayMs: z.number().int().nonnegative(),
+    code: errorCodeSchema,
+  }),
+  'message.fallback': z.object({
+    runId: z.string(),
+    from: z.object({ provider: z.string(), model: z.string() }),
+    to: z.object({ provider: z.string(), model: z.string() }),
+    code: errorCodeSchema,
+    reason: z.string(),
+  }),
   usage: z.object({ runId: z.string(), usage: usageSchema }),
   'message.done': z.object({
     runId: z.string(),

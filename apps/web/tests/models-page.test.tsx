@@ -71,6 +71,47 @@ const catalog = () => ({
 });
 
 describe('models page for everyone', () => {
+  it('marks a configured provider that is temporarily down', async () => {
+    mockApi({
+      ...baseRoutes,
+      'GET /api/models/catalog': () => jsonResponse(catalog()),
+      'GET /api/providers/health': () =>
+        jsonResponse({
+          providers: [
+            {
+              id: 'groq',
+              name: 'Groq',
+              configured: true,
+              status: 'down',
+              consecutiveFailures: 3,
+              lastErrorCode: 'PROVIDER_TIMEOUT',
+              retryAt: '2026-09-15T12:00:30.000Z',
+              lastFailureAt: '2026-09-15T12:00:00.000Z',
+              lastSuccessAt: null,
+            },
+            {
+              id: 'gemini',
+              name: 'Gemini',
+              configured: false,
+              status: 'not_configured',
+              consecutiveFailures: 0,
+              lastErrorCode: null,
+              retryAt: null,
+              lastFailureAt: null,
+              lastSuccessAt: null,
+            },
+          ],
+        }),
+    });
+    renderApp('/models');
+
+    const groq = await screen.findByRole('region', { name: 'Groq' });
+    expect(await within(groq).findByText('Temporarily down')).toBeInTheDocument();
+    const gemini = screen.getByRole('region', { name: 'Gemini' });
+    expect(within(gemini).getByText('Not configured')).toBeInTheDocument();
+    expect(within(gemini).queryByText('Temporarily down')).not.toBeInTheDocument();
+  });
+
   it('lists models by provider with status, limits and price, without admin controls', async () => {
     mockApi({ ...baseRoutes, 'GET /api/models/catalog': () => jsonResponse(catalog()) });
     renderApp('/models');

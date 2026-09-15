@@ -5,5 +5,6 @@ export * from './comparison.js';
 export * from './errors.js';
 export * from './health.js';
 export * from './models.js';
+export * from './providers.js';
 export * from './sse.js';
 export * from './stream.js';

@@ -2,6 +2,7 @@ import type { ProviderRegistry } from '@a-ai/ai-core';
 import { appUrl, type ServerEnv } from '@a-ai/config/server';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Redis } from 'ioredis';
+import type { RetryPolicy } from '../ai/retry-policy.js';
 import { ModelSummarizer, type ConversationSummarizer } from '../ai/summarizer.js';
 import { TokenService } from '../ai/token.service.js';
 import type { PrismaClient } from '../generated/prisma/client.js';
@@ -21,6 +22,7 @@ import {
   type ProviderEntry,
 } from '../providers/model-directory.js';
 import { ModelRegistryService } from '../providers/model-registry.service.js';
+import { ProviderHealthService } from '../providers/provider-health.service.js';
 import {
   createPrismaComparisonRepository,
   type ComparisonRepository,
@@ -63,6 +65,8 @@ export type AppServices = {
   adapters: ProviderRegistry;
   /** The model registry: which models exist and whether each is usable. */
   models: ModelRegistryService;
+  /** Per-provider circuit breaker (Phase 6). */
+  health: ProviderHealthService;
   /** Per-model token estimation calibrated from provider counts. */
   tokens: TokenService;
   /** Context budgets, summaries and calibration (Phase 5). */
@@ -95,6 +99,8 @@ export type ServiceOverrides = {
   comparisonRunTimeoutMs?: number;
   /** Replaces the default same-model summarizer (the summarization hook). */
   summarizer?: ConversationSummarizer;
+  /** Shorter chat retry delays, so tests need not wait for real backoff. */
+  retryPolicy?: Partial<RetryPolicy>;
 };
 
 export function createServices(input: {
@@ -137,6 +143,7 @@ export function createServices(input: {
     clock,
     logger,
   });
+  const health = new ProviderHealthService({ store, clock });
 
   const tokens = new TokenService(store);
   const context = new ContextService({
@@ -180,15 +187,28 @@ export function createServices(input: {
     }),
     adapters,
     models,
+    health,
     tokens,
     context,
-    chat: new ChatService({ models, conversations, guestChats, context, quota, clock, logger }),
+    chat: new ChatService({
+      models,
+      conversations,
+      guestChats,
+      context,
+      health,
+      quota,
+      fallbackEnabled: env.CHAT_FALLBACK_ENABLED,
+      ...(overrides.retryPolicy ? { retryPolicy: overrides.retryPolicy } : {}),
+      clock,
+      logger,
+    }),
     comparison: new ComparisonService({
       models,
       comparisons,
       guestComparisons: new GuestComparisonStore(store, clock),
       quota,
       tokens,
+      health,
       limits: { guest: env.GUEST_COMPARE_MAX_MODELS, user: env.USER_COMPARE_MAX_MODELS },
       clock,
       logger,

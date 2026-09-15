@@ -15,6 +15,9 @@ import { createMemoryRepositories, type MemoryRepositories } from './memory-repo
 
 export const WEB_ORIGIN = 'http://localhost:5180';
 
+/** Real retry rules with millisecond delays, so failure tests do not wait for real backoff. */
+export const FAST_RETRY = { backoffMs: 1, rateLimitDelayMs: 1 } as const;
+
 export function testEnv(overrides: Record<string, string | undefined> = {}): ServerEnv {
   return parseServerEnv({
     NODE_ENV: 'test',
@@ -74,6 +77,7 @@ export async function buildTestApp(
       comparisons: createMemoryComparisons(),
       modelRegistry: createMemoryModelRegistry(),
       email: new CapturingEmailSender(),
+      retryPolicy: FAST_RETRY,
       ...options.services,
     },
     logger: false,
@@ -106,6 +110,7 @@ export async function buildAuthTestApp(
       modelRegistry: createMemoryModelRegistry(),
       email: emails,
       clock,
+      retryPolicy: FAST_RETRY,
       ...options.services,
     },
     logger: false,

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { AIProvider } from '@a-ai/ai-core';
+import { AIProviderError, isAIProviderError, type AIProvider } from '@a-ai/ai-core';
 import type {
   AIModel,
   AIUsage,
@@ -16,6 +16,7 @@ import { toRunError } from '../../ai/run-error.js';
 import type { TokenService } from '../../ai/token.service.js';
 import { normalizeUsage } from '../../ai/usage.js';
 import type { ModelRegistryService } from '../../providers/model-registry.service.js';
+import type { ProviderHealthService } from '../../providers/provider-health.service.js';
 import type {
   ComparisonRepository,
   ComparisonRunCompletion,
@@ -46,6 +47,8 @@ export type ComparisonServiceDeps = {
   guestComparisons: GuestComparisonStore;
   quota: QuotaService;
   tokens: TokenService;
+  /** Comparison never retries or falls back (ADR-011) but its outcomes inform provider health. */
+  health: ProviderHealthService;
   limits: ComparisonLimits;
   clock: Clock;
   logger: FastifyBaseLogger;
@@ -293,7 +296,7 @@ export class ComparisonService {
     emit: EmitComparisonEvent,
   ): Promise<void> {
     const { runId, provider, model, context, charsPerToken, maxOutputTokens } = run;
-    const { comparisons, tokens, clock, logger } = this.#deps;
+    const { comparisons, tokens, health, clock, logger } = this.#deps;
     const elapsed = () => Math.round(performance.now() - requestStartedAt);
 
     // One controller per run: the request's abort reaches every run, a timeout only this one.
@@ -362,6 +365,9 @@ export class ComparisonService {
       if (controller.signal.aborted) throw controller.signal.reason;
 
       const latencyMs = elapsed();
+      await health.recordSuccess(model.provider).catch((error: unknown) => {
+        logger.warn({ err: error, runId }, 'provider health update failed');
+      });
       const outcome = await record('COMPLETED', null, latencyMs, text || null);
       emit({ event: 'usage', data: { runId, usage: outcome.usage } });
       emit({
@@ -418,6 +424,21 @@ export class ComparisonService {
         : toRunError(error, (unexpected) => {
             logger.error({ err: unexpected, runId }, 'unexpected comparison failure');
           });
+      // No retry or fallback here (ADR-011), but provider faults still count towards its circuit.
+      const providerFault = timedOut
+        ? new AIProviderError({
+            provider: model.provider,
+            code: 'PROVIDER_TIMEOUT',
+            message: runError.message,
+          })
+        : isAIProviderError(error)
+          ? error
+          : null;
+      if (providerFault) {
+        await health.recordFailure(model.provider, providerFault).catch((healthError: unknown) => {
+          logger.warn({ err: healthError, runId }, 'provider health update failed');
+        });
+      }
       const status = runError.code === 'PROVIDER_TIMEOUT' ? 'TIMEOUT' : 'FAILED';
       // Partial output from a failed run is discarded, as in chat.
       await record(status, runError.code, latencyMs, null);

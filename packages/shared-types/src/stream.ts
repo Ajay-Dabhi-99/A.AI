@@ -1,4 +1,5 @@
 import type { AIUsage, RunError } from './ai.js';
+import type { ErrorCode } from './errors.js';
 
 /**
  * Normalized SSE events emitted by the API (blueprint section 9). Every
@@ -27,6 +28,19 @@ export type ChatStreamEventMap = {
     context: ChatContextInfo;
   };
   'message.delta': { runId: string; text: string };
+  /** The same model is tried again after a transient failure; nothing had been streamed. */
+  'message.retry': { runId: string; attempt: number; delayMs: number; code: ErrorCode };
+  /**
+   * Another model answers because `from` failed before sending any text (ADR-013).
+   * Everything after this event comes from `to`.
+   */
+  'message.fallback': {
+    runId: string;
+    from: { provider: string; model: string };
+    to: { provider: string; model: string };
+    code: ErrorCode;
+    reason: string;
+  };
   usage: { runId: string; usage: AIUsage };
   /** `messageId` is the saved assistant message (null for guests or when nothing was produced). */
   'message.done': {

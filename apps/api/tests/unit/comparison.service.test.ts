@@ -2,6 +2,7 @@ import { AIProviderError } from '@a-ai/ai-core';
 import type { ComparisonStreamEvent } from '@a-ai/shared-types';
 import { describe, expect, it } from 'vitest';
 import { TokenService } from '../../src/ai/token.service.js';
+import { ProviderHealthService } from '../../src/providers/provider-health.service.js';
 import type { ChatCaller } from '../../src/modules/chat/chat.service.js';
 import {
   ComparisonService,
@@ -72,6 +73,7 @@ function setup(
     guestComparisons: new GuestComparisonStore(store, clock),
     quota,
     tokens: new TokenService(store),
+    health: new ProviderHealthService({ store, clock }),
     limits: options.limits ?? { guest: 2, user: 4 },
     clock,
     logger,

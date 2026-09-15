@@ -46,6 +46,37 @@ Every registry entry, for the public `/models` page. Same `providers`, and each 
 | `verifiedAt` | When limits were confirmed with a real key, or `null` |
 | `updatedAt`  | Last change                                           |
 
+## `GET /api/providers/health`
+
+**Phase 6.** Circuit-breaker status per provider, shared by every API instance ([ADR-013](../decisions/ADR-013-fallback-routing.md)). Public, `no-store`.
+
+```json
+{
+  "providers": [
+    {
+      "id": "groq",
+      "name": "Groq",
+      "configured": true,
+      "status": "down",
+      "consecutiveFailures": 3,
+      "lastErrorCode": "PROVIDER_TIMEOUT",
+      "retryAt": "2026-09-15T12:00:30.000Z",
+      "lastFailureAt": "2026-09-15T12:00:00.000Z",
+      "lastSuccessAt": "2026-09-15T11:58:10.000Z"
+    }
+  ]
+}
+```
+
+| `status`         | Meaning                                                                                              |
+| ---------------- | ---------------------------------------------------------------------------------------------------- |
+| `healthy`        | No provider failures since the last success                                                          |
+| `degraded`       | Failing, below the threshold; still used                                                             |
+| `down`           | 3 consecutive failures (30 s) or a 429 `Retry-After` (≤ 60 s); skipped as a fallback until `retryAt` |
+| `not_configured` | No API key for this provider                                                                         |
+
+Only error codes are exposed, never provider messages. `/ready` does not depend on provider health.
+
 ## Admin endpoints
 
 Both need a signed-in user with the admin role: guests get `401 AUTH_REQUIRED`, other users `403 FORBIDDEN`. Responses are `no-store`.

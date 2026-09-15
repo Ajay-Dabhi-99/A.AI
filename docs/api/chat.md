@@ -81,6 +81,23 @@ data: {"runId":"…","status":"completed","messageId":"…or null","latencyMs":2
 
 When messages were left out, the same model updates the conversation summary after `message.done` (not charged to the daily allowance; disabled with `CONTEXT_SUMMARY_ENABLED=false`).
 
+### Retries and fallback (Phase 6)
+
+When the chosen model fails **before sending any text**, the API retries it once for transient errors and then lets the next healthy model answer ([ADR-013](../decisions/ADR-013-fallback-routing.md)). The stream says so:
+
+```
+event: message.retry
+data: {"runId":"…","attempt":2,"delayMs":500,"code":"PROVIDER_TIMEOUT"}
+
+event: message.fallback
+data: {"runId":"…","from":{"provider":"groq","model":"openai/gpt-oss-20b"},"to":{"provider":"gemini","model":"gemini-3.8-flash"},"code":"RATE_LIMITED","reason":"Groq returned HTTP 429"}
+```
+
+- Everything after `message.fallback` comes from `to`. The saved reply's `run` has the answering `provider`/`model` and `fallbackFrom` with the model the user chose.
+- Nothing is retried or switched once text has streamed.
+- At most 2 attempts on the chosen model, 1 on each of at most 2 fallback models. One message of allowance in all cases; refunded if nothing was produced.
+- `CHAT_FALLBACK_ENABLED=false` keeps the retry but never switches models.
+
 A failure after the stream opened ends with an `error` event instead of `message.done`:
 
 ```

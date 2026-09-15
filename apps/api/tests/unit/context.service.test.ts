@@ -8,6 +8,7 @@ import { GuestConversationStore } from '../../src/modules/chat/guest-conversatio
 import { GuestService } from '../../src/modules/guest/guest.service.js';
 import { createAdapterRegistry, registryDefaults } from '../../src/providers/model-directory.js';
 import { ModelRegistryService } from '../../src/providers/model-registry.service.js';
+import { ProviderHealthService } from '../../src/providers/provider-health.service.js';
 import { ContextService } from '../../src/services/context.service.js';
 import { createRedisStore } from '../../src/services/kv-store.js';
 import { QuotaService } from '../../src/services/quota.service.js';
@@ -64,6 +65,8 @@ function setup(options: { summariesEnabled?: boolean; summarizer?: ConversationS
     conversations,
     guestChats,
     context,
+    health: new ProviderHealthService({ store, clock }),
+    fallbackEnabled: true,
     quota: new QuotaService(store, { guest: 50, user: 50 }, clock),
     clock,
     logger,

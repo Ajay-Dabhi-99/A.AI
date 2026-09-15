@@ -40,6 +40,7 @@ describe('parseServerEnv', () => {
       GUEST_COMPARE_MAX_MODELS: 2,
       USER_COMPARE_MAX_MODELS: 4,
       CONTEXT_SUMMARY_ENABLED: true,
+      CHAT_FALLBACK_ENABLED: true,
       EMAIL_FROM: 'A.ai <onboarding@resend.dev>',
     });
     expect(env.DIRECT_URL).toBeUndefined();

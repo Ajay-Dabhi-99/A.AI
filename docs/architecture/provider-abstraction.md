@@ -43,6 +43,21 @@ Every call goes through `providerFetch` and the adapter, so the policy is identi
 
 Provider error bodies are discarded; they can echo keys or prompts.
 
+## Retries, fallback and provider health (Phase 6)
+
+Adapters never retry; the policy lives above them so it is the same for every provider ([ADR-013](../decisions/ADR-013-fallback-routing.md)).
+
+| Concern                            | Where                                               | Rule                                                                                               |
+| ---------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Retry or fall back after a failure | `apps/api/src/ai/retry-policy.ts` (pure)            | Decision table per error code; nothing after text has streamed                                     |
+| Which model takes over             | `apps/api/src/ai/model-router.ts` (pure)            | Available, same category, other providers first, registry order, skip providers that are down      |
+| Provider health                    | `apps/api/src/providers/provider-health.service.ts` | Redis circuit breaker: 3 failures → down for 30 s; 429 `Retry-After` → down for that long (≤ 60 s) |
+| Orchestration                      | `apps/api/src/modules/chat/chat.service.ts`         | ≤ 2 attempts on the chosen model, 1 on each of ≤ 2 fallbacks; `message.retry`, `message.fallback`  |
+
+- Comparison never retries or falls back (ADR-011) but records every outcome in provider health.
+- `GET /api/providers/health` exposes `healthy | degraded | down | not_configured`; `/ready` does not depend on it.
+- Cancellation reaches the provider call, the retry wait and the fallback loop through the one request signal.
+
 ## OpenAI-compatible adapter
 
 - Sends `stream: true`, `stream_options: { include_usage: true }` and the provider's output-limit parameter.

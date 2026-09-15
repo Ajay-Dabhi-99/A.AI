@@ -22,6 +22,7 @@ export type RunRecord = {
   id: string;
   conversationId: string;
   messageId: string | null;
+  /** The model that answered (or last tried). */
   provider: string;
   model: string;
   status: RunStatusValue;
@@ -31,6 +32,11 @@ export type RunRecord = {
   outputTokens: number | null;
   usageSource: string | null;
   errorCode: string | null;
+  /** The model the user chose, when a fallback model answered (Phase 6). */
+  requestedProvider: string | null;
+  requestedModel: string | null;
+  attemptCount: number;
+  fallbackReason: string | null;
   createdAt: Date;
   completedAt: Date | null;
 };
@@ -42,6 +48,16 @@ export type MessageRecord = {
   content: string;
   createdAt: Date;
   run: RunRecord | null;
+};
+
+/** Set when another model than the one started with produced the outcome. */
+export type RunFallback = {
+  provider: string;
+  model: string;
+  requestedProvider: string;
+  requestedModel: string;
+  /** The error code that caused the switch. */
+  reason: string;
 };
 
 export type RunCompletion = {
@@ -57,6 +73,9 @@ export type RunCompletion = {
   errorCode: string | null;
   /** From registry prices; null when a price or token count is unknown. */
   estimatedCostUsd: number | null;
+  /** Provider calls made, including retries and fallbacks. Defaults to 1. */
+  attemptCount?: number;
+  fallback?: RunFallback;
   completedAt: Date;
 };
 
@@ -64,7 +83,13 @@ export type ImportedMessage = {
   role: MessageRoleValue;
   content: string;
   createdAt: Date;
-  run?: { provider: string; model: string; status: RunStatusValue; latencyMs?: number };
+  run?: {
+    provider: string;
+    model: string;
+    status: RunStatusValue;
+    latencyMs?: number;
+    fallbackFrom?: { provider: string; model: string };
+  };
 };
 
 export type SummaryUpdate = {
@@ -158,6 +183,7 @@ export function createPrismaConversationRepository(prisma: PrismaClient): Conver
                   content: completion.messageContent,
                 },
               });
+        const { fallback } = completion;
         const run = await tx.modelRun.update({
           where: { id: runId },
           data: {
@@ -170,6 +196,16 @@ export function createPrismaConversationRepository(prisma: PrismaClient): Conver
             usageSource: completion.usageSource,
             errorCode: completion.errorCode,
             estimatedCostUsd: completion.estimatedCostUsd,
+            attemptCount: completion.attemptCount ?? 1,
+            ...(fallback
+              ? {
+                  provider: fallback.provider,
+                  model: fallback.model,
+                  requestedProvider: fallback.requestedProvider,
+                  requestedModel: fallback.requestedModel,
+                  fallbackReason: fallback.reason,
+                }
+              : {}),
             completedAt: completion.completedAt,
           },
         });
@@ -216,6 +252,8 @@ export function createPrismaConversationRepository(prisma: PrismaClient): Conver
                   model: message.run.model,
                   status: message.run.status,
                   latencyMs: message.run.latencyMs ?? null,
+                  requestedProvider: message.run.fallbackFrom?.provider ?? null,
+                  requestedModel: message.run.fallbackFrom?.model ?? null,
                   completedAt: message.createdAt,
                   createdAt: message.createdAt,
                 },

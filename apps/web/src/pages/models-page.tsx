@@ -1,4 +1,4 @@
-import type { CatalogModel, ProviderInfo } from '@a-ai/shared-types';
+import type { CatalogModel, ProviderHealth, ProviderInfo } from '@a-ai/shared-types';
 import { useQuery } from '@tanstack/react-query';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,7 @@ import { ModelCard } from '@/features/models/model-card';
 import { currentUser, useMe } from '@/hooks/use-me';
 import { MODELS_QUERY_KEY } from '@/hooks/use-models';
 import { fetchAdminModelCatalog, fetchModelCatalog } from '@/services/models';
+import { fetchProviderHealth } from '@/services/providers';
 
 function groupByProvider(models: CatalogModel[], providers: ProviderInfo[]) {
   const order: string[] = [];
@@ -18,6 +19,26 @@ function groupByProvider(models: CatalogModel[], providers: ProviderInfo[]) {
   }));
 }
 
+const time = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' });
+
+/** Degraded and down providers are called out; healthy ones need no badge. */
+function HealthBadge({ health }: { health: ProviderHealth | undefined }) {
+  if (health?.status === 'down') {
+    return (
+      <Badge
+        tone="danger"
+        title={
+          health.retryAt ? `Tried again after ${time.format(new Date(health.retryAt))}` : undefined
+        }
+      >
+        Temporarily down
+      </Badge>
+    );
+  }
+  if (health?.status === 'degraded') return <Badge>Having problems</Badge>;
+  return null;
+}
+
 /** The model registry: a public catalog, with management controls for administrators. */
 export function ModelsPage() {
   const me = useMe();
@@ -26,6 +47,13 @@ export function ModelsPage() {
     queryKey: [...MODELS_QUERY_KEY, 'catalog', isAdmin ? 'admin' : 'public'],
     queryFn: ({ signal }) => (isAdmin ? fetchAdminModelCatalog(signal) : fetchModelCatalog(signal)),
     enabled: !me.isPending,
+    retry: false,
+  });
+  // Health is extra information: if it cannot be loaded, the catalog still shows.
+  const health = useQuery({
+    queryKey: ['providers', 'health'],
+    queryFn: ({ signal }) => fetchProviderHealth(signal),
+    staleTime: 30_000,
     retry: false,
   });
 
@@ -67,6 +95,11 @@ export function ModelsPage() {
                 {provider.name}
               </h2>
               {!provider.configured && <Badge>Not configured</Badge>}
+              {provider.configured && (
+                <HealthBadge
+                  health={health.data?.providers.find((item) => item.id === provider.id)}
+                />
+              )}
             </div>
             <ul className="grid gap-4 md:grid-cols-2">
               {models.map((model) => (

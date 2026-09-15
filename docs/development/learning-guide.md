@@ -207,8 +207,11 @@ pnpm admin:promote you@example.com
 
 ## Phase 6: Fallback + routing
 
-- **Learn:** retries with backoff and jitter, circuit breakers, provider health scoring, deterministic fallback rules.
-- **Where:** `apps/api/src/ai/model-router.ts`, `apps/api/src/ai/fallback.service.ts`.
+- **Learn:** retries with backoff, circuit breakers, provider health, deterministic fallback rules, cancelling work that is waiting.
+- **Where:** `apps/api/src/ai/retry-policy.ts` (the decision table), `apps/api/src/ai/model-router.ts` (fallback order), `apps/api/src/providers/provider-health.service.ts` (circuit breaker), the attempt loop in `apps/api/src/modules/chat/chat.service.ts`.
+- **Read first:** `apps/api/tests/unit/chat-fallback.test.ts`: one test per row of the ADR-013 table (timeout, 429, rejected key, bad response, text already streamed, circuit open, Stop during the retry wait).
+- **See it work:** with keys for two providers, set one key to an invalid value and chat with that provider's model; the reply is labelled "Answered by … because … was unavailable" and `/models` shows the provider as having problems.
+- **Design:** [ADR-013](../decisions/ADR-013-fallback-routing.md), [provider abstraction](../architecture/provider-abstraction.md#retries-fallback-and-provider-health-phase-6).
 
 ## Phase 7: History + analytics
 

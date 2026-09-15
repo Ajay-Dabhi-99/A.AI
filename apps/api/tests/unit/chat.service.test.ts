@@ -10,6 +10,7 @@ import { ModelSummarizer } from '../../src/ai/summarizer.js';
 import { TokenService } from '../../src/ai/token.service.js';
 import { GuestConversationStore } from '../../src/modules/chat/guest-conversation.store.js';
 import { ContextService } from '../../src/services/context.service.js';
+import { ProviderHealthService } from '../../src/providers/provider-health.service.js';
 import { GuestService } from '../../src/modules/guest/guest.service.js';
 import { createAdapterRegistry, registryDefaults } from '../../src/providers/model-directory.js';
 import { ModelRegistryService } from '../../src/providers/model-registry.service.js';
@@ -73,6 +74,9 @@ function setup(options: { contextWindow?: number } = {}) {
     conversations,
     guestChats,
     context,
+    health: new ProviderHealthService({ store, clock }),
+    fallbackEnabled: true,
+    retryPolicy: { backoffMs: 1, rateLimitDelayMs: 1 },
     quota,
     clock,
     logger,
@@ -256,19 +260,16 @@ describe('cost estimates', () => {
 describe('failures and cancellation', () => {
   it('records a failure with no output, refunds the allowance, and allows a retry', async () => {
     const ctx = setup();
-    ctx.provider.setScripts(
-      [
-        {
-          type: 'throw',
-          error: new AIProviderError({
-            provider: 'scripted',
-            code: 'RATE_LIMITED',
-            message: 'Scripted is busy',
-          }),
-        },
-      ],
-      [say('Recovered'), done],
-    );
+    const busy: ScriptStep = {
+      type: 'throw',
+      error: new AIProviderError({
+        provider: 'scripted',
+        code: 'RATE_LIMITED',
+        message: 'Scripted is busy',
+      }),
+    };
+    // The first request retries once (ADR-013) and has no other model to fall back to.
+    ctx.provider.setScripts([busy], [busy], [say('Recovered'), done]);
 
     const failed = await run(ctx, USER, { message: 'hello?' });
     expect(failed.at(-1)).toEqual({

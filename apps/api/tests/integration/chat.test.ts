@@ -123,19 +123,16 @@ describe('POST /api/chat as a guest', () => {
 
   it('refunds the allowance when the provider fails, and retries without repeating the question', async () => {
     ctx = await buildChatTestApp();
-    ctx.provider.setScripts(
-      [
-        {
-          type: 'throw',
-          error: new AIProviderError({
-            provider: 'scripted',
-            code: 'PROVIDER_TIMEOUT',
-            message: 'Scripted did not respond',
-          }),
-        },
-      ],
-      [say('Second time lucky'), done],
-    );
+    const timeout = {
+      type: 'throw' as const,
+      error: new AIProviderError({
+        provider: 'scripted',
+        code: 'PROVIDER_TIMEOUT',
+        message: 'Scripted did not respond',
+      }),
+    };
+    // The first request retries once (ADR-013) and has no other model to fall back to.
+    ctx.provider.setScripts([timeout], [timeout], [say('Second time lucky'), done]);
 
     const failed = await chat(ctx, { message: 'Are you there?' });
     const guest = cookieValue(failed, GUEST)!;

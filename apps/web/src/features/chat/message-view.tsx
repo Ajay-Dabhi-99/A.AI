@@ -26,6 +26,12 @@ export function MessageView({ message, models }: { message: UiMessage; models: A
       aria-busy={message.pending ? true : undefined}
       className="max-w-full text-sm text-foreground"
     >
+      {run?.fallbackFrom && (
+        <p className="mb-2 text-xs text-muted-foreground" role="note">
+          Answered by {modelName(models, run.provider, run.model)} because{' '}
+          {modelName(models, run.fallbackFrom.provider, run.fallbackFrom.model)} was unavailable.
+        </p>
+      )}
       {waiting ? (
         <p className="flex items-center gap-2 text-muted-foreground" role="status">
           <span className="inline-flex gap-1" aria-hidden="true">
@@ -33,7 +39,7 @@ export function MessageView({ message, models }: { message: UiMessage; models: A
             <span className="size-1.5 animate-pulse rounded-full bg-muted-foreground [animation-delay:150ms]" />
             <span className="size-1.5 animate-pulse rounded-full bg-muted-foreground [animation-delay:300ms]" />
           </span>
-          Thinking…
+          {message.notice === 'retrying' ? 'Retrying after a temporary error…' : 'Thinking…'}
         </p>
       ) : (
         <div className={cn(message.pending && 'streaming-caret')}>

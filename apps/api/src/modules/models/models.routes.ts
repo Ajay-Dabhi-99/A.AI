@@ -1,4 +1,9 @@
-import type { ModelCatalogResponse, ModelsResponse, ModelUpdateResponse } from '@a-ai/shared-types';
+import type {
+  ModelCatalogResponse,
+  ModelsResponse,
+  ModelUpdateResponse,
+  ProviderHealthResponse,
+} from '@a-ai/shared-types';
 import { modelUpdateRequestSchema } from '@a-ai/validation';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -9,7 +14,16 @@ const registryParamsSchema = z.object({ registryId: z.uuid() });
 
 /** Model registry routes (docs/api/models.md). */
 export async function modelRoutes(app: FastifyInstance): Promise<void> {
-  const { models } = app.services;
+  const { models, health } = app.services;
+
+  /**
+   * Provider health from the shared circuit breaker (ADR-013). Public, like the
+   * catalog; it reveals error codes only, never provider messages.
+   */
+  app.get('/api/providers/health', async (_request, reply): Promise<ProviderHealthResponse> => {
+    reply.header('cache-control', 'no-store');
+    return { providers: await health.snapshot(await models.providers()) };
+  });
 
   /** Models that can be used right now, the default, and provider names. */
   app.get('/api/models', async (_request, reply): Promise<ModelsResponse> => {
