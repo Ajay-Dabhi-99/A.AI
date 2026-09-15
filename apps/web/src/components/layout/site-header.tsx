@@ -1,10 +1,13 @@
 import { Link } from 'react-router';
+import { currentUser, useMe } from '@/hooks/use-me';
 import { ApiStatusPill } from './api-status-pill';
 import { HeaderAccount } from './header-account';
 import { Logo } from './logo';
 import { ThemeToggle } from './theme-toggle';
 
 export function SiteHeader() {
+  // History and the dashboard need an account, so guests are not offered them.
+  const signedIn = currentUser(useMe().data) !== null;
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-5">
@@ -28,6 +31,16 @@ export function SiteHeader() {
           <Link to="/models" className="transition-colors hover:text-foreground">
             Models
           </Link>
+          {signedIn && (
+            <>
+              <Link to="/history" className="transition-colors hover:text-foreground">
+                History
+              </Link>
+              <Link to="/dashboard" className="transition-colors hover:text-foreground">
+                Dashboard
+              </Link>
+            </>
+          )}
           <Link to="/#features" className="transition-colors hover:text-foreground">
             Features
           </Link>

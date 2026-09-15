@@ -42,6 +42,11 @@ import {
 import type { Repositories, TransactionRunner } from '../repositories/types.js';
 import { systemClock, type Clock } from '../shared/clock.js';
 import { argon2PasswordHasher, type PasswordHasher } from '../shared/security/password.js';
+import { HistoryService } from '../modules/history/history.service.js';
+import {
+  createPrismaHistoryRepository,
+  type HistoryRepository,
+} from '../repositories/history.repository.js';
 import { ContextService } from './context.service.js';
 import { createEmailSender, type EmailSender } from './email/email-sender.js';
 import { createRedisStore, type KeyValueStore } from './kv-store.js';
@@ -73,6 +78,8 @@ export type AppServices = {
   context: ContextService;
   chat: ChatService;
   comparison: ComparisonService;
+  /** Saved history, run detail and usage analytics (Phase 7). */
+  history: HistoryService;
   email: EmailSender;
   clock: Clock;
   /** JWT_SECRET: keys every HMAC (sessions, links, IPs, emails). */
@@ -101,6 +108,7 @@ export type ServiceOverrides = {
   summarizer?: ConversationSummarizer;
   /** Shorter chat retry delays, so tests need not wait for real backoff. */
   retryPolicy?: Partial<RetryPolicy>;
+  history?: HistoryRepository;
 };
 
 export function createServices(input: {
@@ -215,6 +223,12 @@ export function createServices(input: {
       ...(overrides.comparisonRunTimeoutMs === undefined
         ? {}
         : { runTimeoutMs: overrides.comparisonRunTimeoutMs }),
+    }),
+    history: new HistoryService({
+      history: overrides.history ?? createPrismaHistoryRepository(prisma),
+      conversations,
+      clock,
+      logger,
     }),
     email,
     clock,

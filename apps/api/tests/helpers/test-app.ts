@@ -9,6 +9,7 @@ import type { AIModel } from '@a-ai/shared-types';
 import { CapturingEmailSender, TestClock } from './fakes.js';
 import { createMemoryComparisons, type MemoryComparisons } from './memory-comparisons.js';
 import { createMemoryConversations, type MemoryConversations } from './memory-conversations.js';
+import { createMemoryHistory } from './memory-history.js';
 import { createMemoryModelRegistry } from './memory-model-registry.js';
 import { ScriptedProvider, testModel } from './scripted-provider.js';
 import { createMemoryRepositories, type MemoryRepositories } from './memory-repositories.js';
@@ -17,6 +18,17 @@ export const WEB_ORIGIN = 'http://localhost:5180';
 
 /** Real retry rules with millisecond delays, so failure tests do not wait for real backoff. */
 export const FAST_RETRY = { backoffMs: 1, rateLimitDelayMs: 1 } as const;
+
+/**
+ * Memory conversations and comparisons (the caller's, when it passes its own)
+ * and a history repository reading exactly those, as the SQL one reads the tables.
+ */
+function memoryStores(services: ServiceOverrides | undefined) {
+  const conversations = (services?.conversations ??
+    createMemoryConversations()) as MemoryConversations;
+  const comparisons = (services?.comparisons ?? createMemoryComparisons()) as MemoryComparisons;
+  return { conversations, comparisons, history: createMemoryHistory(conversations, comparisons) };
+}
 
 export function testEnv(overrides: Record<string, string | undefined> = {}): ServerEnv {
   return parseServerEnv({
@@ -73,8 +85,7 @@ export async function buildTestApp(
     services: {
       repositories,
       transaction: repositories.transaction,
-      conversations: createMemoryConversations(),
-      comparisons: createMemoryComparisons(),
+      ...memoryStores(options.services),
       modelRegistry: createMemoryModelRegistry(),
       email: new CapturingEmailSender(),
       retryPolicy: FAST_RETRY,
@@ -105,8 +116,7 @@ export async function buildAuthTestApp(
     services: {
       repositories,
       transaction: repositories.transaction,
-      conversations: createMemoryConversations(),
-      comparisons: createMemoryComparisons(),
+      ...memoryStores(options.services),
       modelRegistry: createMemoryModelRegistry(),
       email: emails,
       clock,

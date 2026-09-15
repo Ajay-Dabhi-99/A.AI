@@ -215,8 +215,11 @@ pnpm admin:promote you@example.com
 
 ## Phase 7: History + analytics
 
-- **Learn:** pagination, search, aggregate queries, charts that tell the truth.
-- **Where:** `apps/api/src/modules/conversations`, `modules/usage`, `apps/web/src/features/history`.
+- **Learn:** keyset pagination, escaped search, aggregate SQL (`GROUPING SETS`, `percentile_cont`), compare-free renames, charts that tell the truth.
+- **Where:** `apps/api/src/repositories/history.repository.ts` (all SQL), `apps/api/src/modules/history/history.service.ts` (cursor, summaries, day filling), `apps/web/src/pages/{history,dashboard}-page.tsx`, `apps/web/src/features/history/runs-per-day-chart.tsx`.
+- **Read first:** `apps/api/tests/unit/history.service.test.ts` (paging, search wildcards, honest totals, p95 threshold), then the traceability checks in `apps/api/tests/live/history.test.ts`.
+- **See it work:** sign in, chat and compare a few times, open `/history` (search, rename, delete) and `/dashboard`; delete a chat and watch its runs leave the dashboard.
+- **Design:** [ADR-014](../decisions/ADR-014-history-analytics.md), [history API](../api/history.md).
 
 ## Phase 8: Vision + image
 

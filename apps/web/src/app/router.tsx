@@ -1,6 +1,10 @@
 import { createBrowserRouter, type RouteObject } from 'react-router';
 import { ChatPage } from '@/pages/chat-page';
 import { ComparePage } from '@/pages/compare-page';
+import { ComparisonDetailPage } from '@/pages/comparison-detail-page';
+import { ConversationRunsPage } from '@/pages/conversation-runs-page';
+import { DashboardPage } from '@/pages/dashboard-page';
+import { HistoryPage } from '@/pages/history-page';
 import { ForgotPasswordPage } from '@/pages/forgot-password-page';
 import { LandingPage } from '@/pages/landing-page';
 import { LoginPage } from '@/pages/login-page';
@@ -33,7 +37,14 @@ export const routes: RouteObject[] = [
       { path: 'models', element: <ModelsPage /> },
       {
         element: <RequireUser />,
-        children: [{ path: 'settings', element: <SettingsPage /> }],
+        children: [
+          { path: 'settings', element: <SettingsPage /> },
+          // Saved history, run detail and usage analytics (Phase 7).
+          { path: 'history', element: <HistoryPage /> },
+          { path: 'history/chats/:conversationId', element: <ConversationRunsPage /> },
+          { path: 'history/comparisons/:comparisonId', element: <ComparisonDetailPage /> },
+          { path: 'dashboard', element: <DashboardPage /> },
+        ],
       },
       { path: '*', element: <NotFoundPage /> },
     ],

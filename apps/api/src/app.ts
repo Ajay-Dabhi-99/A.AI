@@ -8,6 +8,7 @@ import { registerApiRateLimit } from './middleware/rate-limit.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { chatRoutes } from './modules/chat/chat.routes.js';
 import { comparisonRoutes } from './modules/comparison/comparison.routes.js';
+import { historyRoutes } from './modules/history/history.routes.js';
 import { healthRoutes } from './modules/health/health.routes.js';
 import { modelRoutes } from './modules/models/models.routes.js';
 import { meRoutes } from './modules/users/me.routes.js';
@@ -80,6 +81,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(meRoutes);
   await app.register(chatRoutes);
   await app.register(comparisonRoutes);
+  await app.register(historyRoutes);
   await app.register(modelRoutes);
 
   return app;

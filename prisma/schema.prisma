@@ -152,6 +152,8 @@ model ModelRun {
   message          Message?     @relation(fields: [messageId], references: [id], onDelete: SetNull)
 
   @@index([conversationId, createdAt])
+  /// Deployment-wide usage ranges (Phase 7, ADR-014).
+  @@index([createdAt])
   @@map("model_runs")
 }
 
@@ -192,6 +194,8 @@ model ComparisonRun {
   comparison       Comparison @relation(fields: [comparisonId], references: [id], onDelete: Cascade)
 
   @@index([comparisonId, position])
+  /// Deployment-wide usage ranges (Phase 7, ADR-014).
+  @@index([createdAt])
   @@map("comparison_runs")
 }
 
