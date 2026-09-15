@@ -1,5 +1,6 @@
 import type { AIModel, ProviderInfo } from '@a-ai/shared-types';
 import { Link } from 'react-router';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { modelRefKey } from './use-comparison';
 
@@ -64,12 +65,10 @@ export function ModelPicker({
                           (blocked || disabled) && 'cursor-not-allowed opacity-60',
                         )}
                       >
-                        <input
-                          type="checkbox"
-                          className="accent-primary"
+                        <Checkbox
                           checked={checked}
-                          disabled={blocked}
-                          onChange={() =>
+                          disabled={blocked || disabled}
+                          onCheckedChange={() =>
                             onChange(
                               checked
                                 ? selected.filter((item) => item !== key)

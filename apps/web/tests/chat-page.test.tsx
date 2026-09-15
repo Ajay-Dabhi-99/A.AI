@@ -205,9 +205,11 @@ describe('chat page as a guest', () => {
     const api = mockApi(guestRoutes({ 'POST /api/chat': (init) => sse([START, DONE], init) }));
     renderApp('/chat');
 
-    const picker = await screen.findByLabelText('Model');
-    expect(within(picker).getByRole('group', { name: 'Gemini' })).toBeInTheDocument();
-    fireEvent.change(picker, { target: { value: 'gemini::gemini-3.8-flash' } });
+    // The shadcn/ui Select opens from the keyboard and lists models grouped by provider.
+    const picker = await screen.findByRole('combobox', { name: 'Model' });
+    fireEvent.keyDown(picker, { key: 'Enter' });
+    const gemini = await screen.findByRole('group', { name: 'Gemini' });
+    fireEvent.click(within(gemini).getByRole('option', { name: 'Gemini 3.8 Flash' }));
     expect(localStorage.getItem('a-ai-model')).toBe(
       '{"provider":"gemini","id":"gemini-3.8-flash"}',
     );

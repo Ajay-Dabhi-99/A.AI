@@ -5,6 +5,15 @@ import { useState, type FormEvent } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { TextField } from '@/features/auth/fields';
 import { MODELS_QUERY_KEY } from '@/hooks/use-models';
 import { ApiError, NetworkError } from '@/services/api';
@@ -151,19 +160,27 @@ function EditForm({
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="space-y-1.5">
-          <label htmlFor={id('access')} className="text-sm font-medium">
-            Access
-          </label>
-          <select
-            id={id('access')}
+          <Label htmlFor={id('access')}>Access</Label>
+          <Select
             value={values.availability}
-            onChange={field('availability')}
-            className="h-11 w-full rounded-lg border border-border bg-surface px-3 text-sm"
+            onValueChange={(value) =>
+              setValues((current) => ({
+                ...current,
+                availability: value as CatalogModel['availability'],
+              }))
+            }
           >
-            <option value="free">Free</option>
-            <option value="free-tier">Free tier</option>
-            <option value="paid">Paid</option>
-          </select>
+            <SelectTrigger id={id('access')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(ACCESS) as CatalogModel['availability'][]).map((access) => (
+                <SelectItem key={access} value={access}>
+                  {ACCESS[access]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <TextField
           id={id('input-price')}
@@ -182,17 +199,18 @@ function EditForm({
           onChange={field('outputPrice')}
         />
       </div>
-      <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id={id('verified')}
           checked={values.verified}
-          onChange={(event) =>
-            setValues((current) => ({ ...current, verified: event.target.checked }))
+          onCheckedChange={(checked) =>
+            setValues((current) => ({ ...current, verified: checked === true }))
           }
-          className="size-4 accent-[var(--primary)]"
         />
-        Limits confirmed with a real provider key
-      </label>
+        <Label htmlFor={id('verified')} className="font-normal">
+          Limits confirmed with a real provider key
+        </Label>
+      </div>
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={saving}>
           {saving ? 'Saving…' : 'Save changes'}

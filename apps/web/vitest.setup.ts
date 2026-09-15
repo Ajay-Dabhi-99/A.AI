@@ -49,6 +49,19 @@ mockMatchMedia();
 // jsdom does not implement scrolling; React Router's <ScrollRestoration> calls it.
 window.scrollTo = (() => undefined) as typeof window.scrollTo;
 
+// Radix measures controls with ResizeObserver, which jsdom lacks.
+class TestResizeObserver implements ResizeObserver {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+globalThis.ResizeObserver ??= TestResizeObserver;
+
+// Radix Select uses pointer capture and scrollIntoView, which jsdom lacks.
+Element.prototype.hasPointerCapture ??= () => false;
+Element.prototype.releasePointerCapture ??= () => undefined;
+Element.prototype.scrollIntoView ??= () => undefined;
+
 class TestIntersectionObserver implements IntersectionObserver {
   readonly root = null;
   readonly rootMargin = '0px';

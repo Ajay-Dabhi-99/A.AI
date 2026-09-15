@@ -5,7 +5,9 @@ import { useState, type FormEvent, type KeyboardEvent } from 'react';
 import { Link } from 'react-router';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import { PageSpinner } from '@/components/ui/spinner';
+import { Textarea } from '@/components/ui/textarea';
 import { ComparisonColumn } from '@/features/compare/comparison-column';
 import { ModelPicker } from '@/features/compare/model-picker';
 import { columnKey, modelRefKey, useComparison } from '@/features/compare/use-comparison';
@@ -101,10 +103,8 @@ function CompareWorkspace({ me, catalog }: { me: MeResponse; catalog: ModelsResp
           />
 
           <div>
-            <label htmlFor="compare-prompt" className="text-sm font-medium">
-              Prompt
-            </label>
-            <textarea
+            <Label htmlFor="compare-prompt">Prompt</Label>
+            <Textarea
               id="compare-prompt"
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
@@ -112,7 +112,7 @@ function CompareWorkspace({ me, catalog }: { me: MeResponse; catalog: ModelsResp
               rows={4}
               placeholder="Ask every selected model the same thing…"
               aria-invalid={tooLong ? true : undefined}
-              className="mt-2 block w-full resize-y rounded-xl border border-border bg-surface-muted/40 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 focus:border-primary/50 focus:outline-none"
+              className="mt-2 resize-y rounded-xl"
             />
             {tooLong && (
               <p className="mt-1 font-mono text-xs text-danger">

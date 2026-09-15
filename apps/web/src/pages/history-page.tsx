@@ -6,6 +6,15 @@ import { Link } from 'react-router';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { PageSpinner, Spinner } from '@/components/ui/spinner';
 import { CONVERSATIONS_QUERY_KEY } from '@/features/chat/use-chat-session';
 import { daysAgo, formatDateTime, formatUsd } from '@/features/history/format';
@@ -72,15 +81,15 @@ function HistoryRow({ item }: { item: HistoryItem }) {
             <Badge tone={item.kind === 'conversation' ? 'neutral' : 'primary'}>{kindLabel}</Badge>
             {mode === 'rename' ? (
               <form onSubmit={submitRename} className="flex min-w-0 flex-1 items-center gap-2">
-                <label htmlFor={`rename-${item.id}`} className="sr-only">
+                <Label htmlFor={`rename-${item.id}`} className="sr-only">
                   New title
-                </label>
-                <input
+                </Label>
+                <Input
                   id={`rename-${item.id}`}
                   value={title}
                   maxLength={CONVERSATION_TITLE_MAX_LENGTH}
                   onChange={(event) => setTitle(event.target.value)}
-                  className="h-8 min-w-0 flex-1 rounded-lg border border-border bg-surface-muted/40 px-2 text-sm"
+                  className="h-8 min-w-0 flex-1 px-2"
                   autoFocus
                 />
                 <Button type="submit" size="sm" disabled={rename.isPending || !title.trim()}>
@@ -211,50 +220,54 @@ export function HistoryPage() {
       </div>
 
       <div className="flex flex-wrap items-end gap-3" role="search">
-        <div className="min-w-48 flex-1">
-          <label htmlFor="history-search" className="text-xs font-medium text-muted-foreground">
+        <div className="min-w-48 flex-1 space-y-1.5">
+          <Label htmlFor="history-search" className="text-xs text-muted-foreground">
             Search
-          </label>
-          <input
+          </Label>
+          <Input
             id="history-search"
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Titles and comparison prompts"
-            className="mt-1 h-9 w-full rounded-lg border border-border bg-surface px-3 text-sm"
+            className="h-9"
           />
         </div>
-        <div>
-          <label htmlFor="history-type" className="text-xs font-medium text-muted-foreground">
+        <div className="space-y-1.5">
+          <Label htmlFor="history-type" className="text-xs text-muted-foreground">
             Type
-          </label>
-          <select
-            id="history-type"
-            value={type}
-            onChange={(event) => setType(event.target.value as HistoryFilters['type'])}
-            className="mt-1 h-9 rounded-lg border border-border bg-surface px-2 text-sm"
-          >
-            <option value="all">All</option>
-            <option value="conversation">Chats</option>
-            <option value="comparison">Comparisons</option>
-          </select>
+          </Label>
+          <Select value={type} onValueChange={(value) => setType(value as HistoryFilters['type'])}>
+            <SelectTrigger id="history-type" className="h-9 w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="conversation">Chats</SelectItem>
+              <SelectItem value="comparison">Comparisons</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <div>
-          <label htmlFor="history-period" className="text-xs font-medium text-muted-foreground">
+        <div className="space-y-1.5">
+          <Label htmlFor="history-period" className="text-xs text-muted-foreground">
             Period
-          </label>
-          <select
-            id="history-period"
-            value={period}
-            onChange={(event) => setPeriod(event.target.value)}
-            className="mt-1 h-9 rounded-lg border border-border bg-surface px-2 text-sm"
+          </Label>
+          {/* Radix items cannot use an empty value, so "All time" is `all` here. */}
+          <Select
+            value={period || 'all'}
+            onValueChange={(value) => setPeriod(value === 'all' ? '' : value)}
           >
-            {PERIODS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id="history-period" className="h-9 w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PERIODS.map((option) => (
+                <SelectItem key={option.value || 'all'} value={option.value || 'all'}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 

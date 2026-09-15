@@ -4,6 +4,15 @@ import { ArrowUp, ImagePlus, Loader2, Mic, Square, X } from 'lucide-react';
 import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { Link } from 'react-router';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useAttachmentDrafts } from './use-attachment-drafts';
 import { useVoiceInput } from './use-voice-input';
@@ -245,34 +254,40 @@ export function Composer({
               Recording {clock(voiceInput.seconds)} / {clock(voice.maxSeconds)}
             </span>
           )}
-          <label htmlFor="chat-model" className="sr-only">
-            Model
-          </label>
-          <select
-            id="chat-model"
+          <Select
             value={model ? modelKey(model) : ''}
-            onChange={(event) => {
-              const next = models.find((item) => modelKey(item) === event.target.value);
+            onValueChange={(value) => {
+              const next = models.find((item) => modelKey(item) === value);
               if (next) onSelectModel(next);
             }}
             disabled={streaming || models.length === 0}
-            className="h-8 max-w-[14rem] truncate rounded-lg border border-border bg-surface-muted px-2 text-xs text-foreground"
           >
-            {providerIds.map((provider) => (
-              <optgroup
-                key={provider}
-                label={providers.find((item) => item.id === provider)?.name ?? provider}
-              >
-                {models
-                  .filter((item) => item.provider === provider)
-                  .map((item) => (
-                    <option key={modelKey(item)} value={modelKey(item)}>
-                      {item.name}
-                    </option>
-                  ))}
-              </optgroup>
-            ))}
-          </select>
+            <SelectTrigger
+              id="chat-model"
+              size="sm"
+              aria-label="Model"
+              className="w-auto max-w-[14rem] bg-surface-muted"
+            >
+              <SelectValue placeholder="Choose a model" />
+            </SelectTrigger>
+            {/* The composer sits at the bottom of the screen, so the list opens upward. */}
+            <SelectContent side="top" align="start" className="min-w-56">
+              {providerIds.map((provider) => (
+                <SelectGroup key={provider}>
+                  <SelectLabel>
+                    {providers.find((item) => item.id === provider)?.name ?? provider}
+                  </SelectLabel>
+                  {models
+                    .filter((item) => item.provider === provider)
+                    .map((item) => (
+                      <SelectItem key={modelKey(item)} value={modelKey(item)}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                </SelectGroup>
+              ))}
+            </SelectContent>
+          </Select>
           {isGuest && readsImages && (
             <Link
               to="/signup"

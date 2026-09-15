@@ -10,6 +10,15 @@ import { useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { PageSpinner } from '@/components/ui/spinner';
 import { AttachmentVideo } from '@/features/attachments/attachment-video';
 import { AttachmentImage } from '@/features/chat/attachment-image';
@@ -198,37 +207,33 @@ function Generator({
   return (
     <div className="space-y-6">
       <form onSubmit={submit} className="space-y-3 rounded-2xl border border-border bg-surface p-4">
-        <div>
-          <label htmlFor={`${kind}-model`} className="text-sm font-medium">
-            Model
-          </label>
-          <select
-            id={`${kind}-model`}
-            value={modelKey}
-            onChange={(event) => setModelKey(event.target.value)}
-            className="mt-1 h-9 w-full rounded-lg border border-border bg-surface-muted px-2 text-sm"
-          >
-            {models.map((item) => (
-              <option
-                key={`${item.provider}::${item.model}`}
-                value={`${item.provider}::${item.model}`}
-              >
-                {item.name}
-              </option>
-            ))}
-          </select>
+        <div className="space-y-2">
+          <Label htmlFor={`${kind}-model`}>Model</Label>
+          <Select value={modelKey} onValueChange={setModelKey}>
+            <SelectTrigger id={`${kind}-model`}>
+              <SelectValue placeholder="Choose a model" />
+            </SelectTrigger>
+            <SelectContent>
+              {models.map((item) => (
+                <SelectItem
+                  key={`${item.provider}::${item.model}`}
+                  value={`${item.provider}::${item.model}`}
+                >
+                  {item.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <div>
-          <label htmlFor={`${kind}-prompt`} className="text-sm font-medium">
-            {COPY[kind].promptLabel}
-          </label>
-          <textarea
+        <div className="space-y-2">
+          <Label htmlFor={`${kind}-prompt`}>{COPY[kind].promptLabel}</Label>
+          <Textarea
             id={`${kind}-prompt`}
             value={prompt}
             maxLength={MEDIA_PROMPT_MAX_LENGTH}
             onChange={(event) => setPrompt(event.target.value)}
             rows={3}
-            className="mt-1 block w-full resize-none rounded-lg border border-border bg-transparent px-3 py-2 text-sm"
+            className="resize-none"
           />
         </div>
         <Button type="submit" disabled={start.isPending || !prompt.trim()}>
