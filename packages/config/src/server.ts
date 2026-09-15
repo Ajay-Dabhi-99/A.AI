@@ -104,6 +104,10 @@ export const serverEnvSchema = z
       .default('a-ai-attachments'),
     /** Largest accepted image upload, in bytes (100 KiB to 20 MiB, default 5 MiB). */
     ATTACHMENT_MAX_BYTES: z.coerce.number().int().min(102_400).max(20_971_520).default(5_242_880),
+    /** Largest voice recording accepted for transcription (100 KiB to 25 MiB, default 10 MiB). */
+    AUDIO_MAX_BYTES: z.coerce.number().int().min(102_400).max(26_214_400).default(10_485_760),
+    /** Largest generated video stored (1 MiB to 200 MiB, default 50 MiB). */
+    VIDEO_MAX_BYTES: z.coerce.number().int().min(1_048_576).max(209_715_200).default(52_428_800),
     /** Let another healthy model answer when the chosen one fails before sending text (ADR-013). */
     CHAT_FALLBACK_ENABLED: z
       .enum(['true', 'false'])

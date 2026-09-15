@@ -13,9 +13,12 @@ import { Link } from 'react-router';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { resolveModel, useModelStore } from '@/stores/model-store';
+import { useAudioStatus } from '@/hooks/use-audio-status';
 import { Composer } from './composer';
 import { MessageView } from './message-view';
 import { useChatSession } from './use-chat-session';
+import { speechSupported, useReadAloud } from './use-read-aloud';
+import { voiceInputSupported } from './use-voice-input';
 
 const SUGGESTIONS = [
   'Explain vector databases to a product manager in two sentences.',
@@ -75,6 +78,14 @@ export function ChatPanel({
   const select = useModelStore((state) => state.select);
   const model = resolveModel(models, selected, defaultModel);
   const listRef = useRef<HTMLDivElement>(null);
+  const audio = useAudioStatus();
+  const readAloud = useReadAloud();
+  const canSpeak = speechSupported();
+  const transcription = audio.data?.transcription;
+  const voice =
+    transcription?.enabled && voiceInputSupported()
+      ? { maxBytes: transcription.maxBytes, maxSeconds: transcription.maxDurationSeconds }
+      : undefined;
 
   const lastMessage = session.messages.at(-1);
   useEffect(() => {
@@ -119,7 +130,18 @@ export function ChatPanel({
           <ol className="mx-auto flex max-w-3xl flex-col gap-6">
             {session.messages.map((message) => (
               <li key={message.id}>
-                <MessageView message={message} models={models} />
+                <MessageView
+                  message={message}
+                  models={models}
+                  speech={
+                    canSpeak && message.role === 'assistant'
+                      ? {
+                          speaking: readAloud.speakingId === message.id,
+                          onToggle: () => readAloud.toggle(message.id, message.content),
+                        }
+                      : undefined
+                  }
+                />
               </li>
             ))}
           </ol>
@@ -172,6 +194,7 @@ export function ChatPanel({
           onSend={send}
           onStop={session.stop}
           attachmentLimits={attachmentLimits}
+          voice={voice}
           isGuest={isGuest}
           footer={
             quota || session.context ? (

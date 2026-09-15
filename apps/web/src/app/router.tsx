@@ -15,6 +15,7 @@ import { ResetPasswordPage } from '@/pages/reset-password-page';
 import { SettingsPage } from '@/pages/settings-page';
 import { SignupPage } from '@/pages/signup-page';
 import { VerifyEmailPage } from '@/pages/verify-email-page';
+import { VideoPage } from '@/pages/video-page';
 import { RequireUser } from './require-user';
 import { RootLayout } from './root-layout';
 
@@ -38,6 +39,8 @@ export const routes: RouteObject[] = [
       { path: 'models', element: <ModelsPage /> },
       // Says plainly when no image provider is enabled; generating needs an account (Phase 8).
       { path: 'image', element: <ImagePage /> },
+      // Video jobs resume from ?job=<id> after a refresh (Phase 9).
+      { path: 'video', element: <VideoPage /> },
       {
         element: <RequireUser />,
         children: [

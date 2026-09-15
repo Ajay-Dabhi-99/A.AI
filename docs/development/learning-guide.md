@@ -224,12 +224,14 @@ pnpm admin:promote you@example.com
 ## Phase 8: Vision + image
 
 - **Learn:** secure uploads (type sniffing, size limits), object storage with signed URLs, async job pattern.
-- **Where:** `apps/api/src/modules/image`, `apps/web/src/features/image`.
+- **Where:** `apps/api/src/ai/image-sniff.ts`, `apps/api/src/modules/attachments`, `apps/api/src/services/storage/object-storage.ts`, `apps/web/src/features/chat/composer.tsx`.
 
 ## Phase 9: Video + audio
 
 - **Learn:** long-running jobs that survive refresh, polling vs push, speech-to-text and text-to-speech pipelines.
-- **Where:** `apps/api/src/modules/{video,audio}`, `apps/web/src/features/{video,audio}`.
+- **Where:** `apps/api/src/modules/jobs` (job contract, SSE, recovery), `apps/api/src/modules/audio`, `packages/ai-providers/src/transcription.ts`, `apps/web/src/features/jobs/use-media-job.ts`, `apps/web/src/features/chat/{use-voice-input,use-read-aloud}.ts`.
+- **Read first:** `apps/api/tests/unit/media-job.service.test.ts` (recovery rules), then `apps/web/tests/video-page.test.tsx` (resume, reconnect, polling).
+- **Design:** [ADR-016](../decisions/ADR-016-video-audio-jobs.md), [generation API](../api/generation.md), [audio API](../api/audio.md).
 
 ## Phase 10: Hardening + deployment
 

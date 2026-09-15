@@ -1,14 +1,19 @@
 import type { AIModel, Attachment, AttachmentLimits, ProviderInfo } from '@a-ai/shared-types';
 import { CHAT_MESSAGE_MAX_LENGTH } from '@a-ai/validation';
-import { ArrowUp, ImagePlus, Square, X } from 'lucide-react';
+import { ArrowUp, ImagePlus, Loader2, Mic, Square, X } from 'lucide-react';
 import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { Link } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAttachmentDrafts } from './use-attachment-drafts';
+import { useVoiceInput } from './use-voice-input';
 
 function modelKey(model: Pick<AIModel, 'provider' | 'id'>): string {
   return `${model.provider}::${model.id}`;
+}
+
+function clock(seconds: number): string {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
 export function Composer({
@@ -21,6 +26,7 @@ export function Composer({
   onSend,
   onStop,
   attachmentLimits,
+  voice,
   isGuest = false,
   footer,
 }: {
@@ -36,11 +42,20 @@ export function Composer({
   onStop: () => void;
   /** What the caller may attach (from /api/me). Absent or disabled hides the attach button. */
   attachmentLimits?: AttachmentLimits | undefined;
+  /** Voice input limits; absent when speech-to-text is off or the browser cannot record. */
+  voice?: { maxBytes: number; maxSeconds: number } | undefined;
   isGuest?: boolean;
   footer?: React.ReactNode;
 }) {
   const [draft, setDraft] = useState('');
   const drafts = useAttachmentDrafts(attachmentLimits);
+  const voiceInput = useVoiceInput({
+    maxSeconds: voice?.maxSeconds ?? 120,
+    maxBytes: voice?.maxBytes ?? 0,
+    // The transcript is added to the draft, never sent on its own: the user reviews it first.
+    onTranscript: (text) =>
+      setDraft((current) => (current.trim() ? `${current.trimEnd()} ${text}` : text)),
+  });
   const fileInput = useRef<HTMLInputElement>(null);
   const tooLong = draft.length > CHAT_MESSAGE_MAX_LENGTH;
   const canAttach = attachmentLimits?.enabled === true;
@@ -54,7 +69,8 @@ export function Composer({
     model !== undefined &&
     !drafts.uploading &&
     !drafts.hasFailed &&
-    !imagesBlocked;
+    !imagesBlocked &&
+    voiceInput.state === 'idle';
 
   const providerIds = [...new Set(models.map((item) => item.provider))];
 
@@ -77,6 +93,7 @@ export function Composer({
   }
 
   const failures = drafts.items.filter((item) => item.status === 'failed');
+  const recording = voiceInput.state === 'recording';
 
   return (
     <form
@@ -124,7 +141,7 @@ export function Composer({
           ))}
         </ul>
       )}
-      {(drafts.error || failures.length > 0 || imagesBlocked) && (
+      {(drafts.error || failures.length > 0 || imagesBlocked || voiceInput.error) && (
         <div role="alert" className="space-y-0.5 px-2 pb-1.5 text-xs text-danger">
           {drafts.error && <p>{drafts.error}</p>}
           {failures.map((item) => (
@@ -137,6 +154,7 @@ export function Composer({
               {model?.name ?? 'This model'} can't read images. Choose a model that supports images.
             </p>
           )}
+          {voiceInput.error && <p>{voiceInput.error}</p>}
         </div>
       )}
 
@@ -149,7 +167,13 @@ export function Composer({
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={onKeyDown}
         rows={Math.min(8, Math.max(2, draft.split('\n').length))}
-        placeholder={disabled ? 'Chat is unavailable right now' : 'Ask anything…'}
+        placeholder={
+          disabled
+            ? 'Chat is unavailable right now'
+            : voiceInput.state === 'transcribing'
+              ? 'Transcribing your recording…'
+              : 'Ask anything…'
+        }
         disabled={disabled}
         aria-invalid={tooLong ? true : undefined}
         className="block w-full resize-none bg-transparent px-2 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none disabled:cursor-not-allowed"
@@ -190,6 +214,36 @@ export function Composer({
                 <ImagePlus />
               </Button>
             </>
+          )}
+          {voice && (
+            <Button
+              type="button"
+              size="icon"
+              variant={recording ? 'secondary' : 'ghost'}
+              aria-label={
+                recording
+                  ? 'Stop recording'
+                  : voiceInput.state === 'transcribing'
+                    ? 'Transcribing'
+                    : 'Record voice message'
+              }
+              aria-pressed={recording}
+              disabled={disabled || streaming || voiceInput.state === 'transcribing'}
+              onClick={() => (recording ? voiceInput.stop() : void voiceInput.start())}
+            >
+              {voiceInput.state === 'transcribing' ? (
+                <Loader2 className="animate-spin" />
+              ) : recording ? (
+                <Square className="fill-current text-danger" />
+              ) : (
+                <Mic />
+              )}
+            </Button>
+          )}
+          {recording && voice && (
+            <span role="status" className="font-mono text-xs text-danger">
+              Recording {clock(voiceInput.seconds)} / {clock(voice.maxSeconds)}
+            </span>
           )}
           <label htmlFor="chat-model" className="sr-only">
             Model

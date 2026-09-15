@@ -42,6 +42,8 @@ function memoryStores(services: ServiceOverrides | undefined) {
     ),
     storage: createMemoryStorage(),
     generationJobs: createMemoryGenerationJobs(),
+    // testEnv sets a fake GROQ_API_KEY: never let a test build the real speech-to-text adapter.
+    transcription: null,
   };
 }
 

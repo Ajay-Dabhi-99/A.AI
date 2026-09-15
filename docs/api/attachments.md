@@ -74,6 +74,10 @@ What the API does, in order: checks storage and the rate limit (before reading t
 
 `POST /api/chat` with `attachmentIds` ([chat](chat.md)). Each image is sent once, with the message it was attached to; the saved user message lists it in `attachments` in `GET /api/conversations/:id`. Later turns carry text only.
 
+## Generated files
+
+Image and video generation jobs store their output as attachments with `source: "generated"` ([generation](generation.md)). Videos have `kind: "video"`, `mimeType` `video/mp4` or `video/webm`, and `width`/`height` of `null`. Generated files cannot be sent with a chat message.
+
 ## Lifecycle
 
 - Deleting a conversation deletes its image rows and then their storage objects.

@@ -1,5 +1,7 @@
 export * from './ai.js';
 export * from './attachments.js';
+export * from './audio.js';
+export * from './media.js';
 export * from './auth.js';
 export * from './chat.js';
 export * from './comparison.js';

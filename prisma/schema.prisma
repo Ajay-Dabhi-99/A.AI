@@ -128,8 +128,9 @@ model Attachment {
   source     String         @default("upload") @db.VarChar(16)
   mimeType   String         @db.VarChar(32)
   sizeBytes  Int
-  width      Int
-  height     Int
+  /// Null for videos (Phase 9): their headers are not parsed.
+  width      Int?
+  height     Int?
   sha256     String         @db.VarChar(64)
   fileName   String?        @db.VarChar(120)
   storageKey String         @unique @db.VarChar(200)
@@ -171,7 +172,8 @@ model GenerationJob {
   user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   attachment   Attachment?         @relation(fields: [attachmentId], references: [id], onDelete: SetNull)
 
-  @@index([userId, createdAt(sort: Desc)])
+  /// Recent jobs per kind (Phase 9 job list and resume after refresh).
+  @@index([userId, kind, createdAt(sort: Desc)])
   @@index([status, createdAt])
   @@map("generation_jobs")
 }

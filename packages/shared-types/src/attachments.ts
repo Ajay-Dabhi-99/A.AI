@@ -1,19 +1,21 @@
-import type { GenerationJobStatus } from './ai.js';
+import type { MediaGenerationStatus, MediaJob, MediaJobResponse } from './media.js';
 
-/** Image attachments and image-generation jobs (Phase 8, docs/api/attachments.md, ADR-015). */
+/** Attachments: uploaded images and generated media (Phases 8–9, docs/api/attachments.md). */
 
 export type AttachmentMimeType = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif';
+export type VideoAttachmentMimeType = 'video/mp4' | 'video/webm';
 
 export type Attachment = {
   id: string;
-  kind: 'image';
-  mimeType: AttachmentMimeType;
+  kind: 'image' | 'video';
+  mimeType: AttachmentMimeType | VideoAttachmentMimeType;
   sizeBytes: number;
-  width: number;
-  height: number;
+  /** Pixel size for images; null for videos (their headers are not parsed). */
+  width: number | null;
+  height: number | null;
   /** Display name only; never used as a storage path. */
   fileName: string | null;
-  /** `generated` for images made by an image-generation job. */
+  /** `generated` for files made by a generation job. */
   source: 'upload' | 'generated';
   createdAt: string;
 };
@@ -39,26 +41,7 @@ export type AttachmentUrlResponse = {
   expiresAt: string;
 };
 
-export type ImageJob = {
-  id: string;
-  status: GenerationJobStatus;
-  provider: string;
-  model: string;
-  prompt: string;
-  errorCode: string | null;
-  /** The generated image, once the job completed. */
-  attachment: Attachment | null;
-  createdAt: string;
-  completedAt: string | null;
-};
-
-/** GET /api/image/status */
-export type ImageGenerationStatus = {
-  enabled: boolean;
-  models: { provider: string; model: string; name: string }[];
-};
-
-/** POST /api/image/generate and GET /api/image/:id */
-export type ImageJobResponse = {
-  job: ImageJob;
-};
+/** Phase 8 names for the image routes; the shapes are the shared media job contract. */
+export type ImageJob = MediaJob;
+export type ImageGenerationStatus = MediaGenerationStatus;
+export type ImageJobResponse = MediaJobResponse;

@@ -32,6 +32,7 @@ function newAttachment(userId: string, source: 'upload' | 'generated' = 'upload'
     id,
     userId,
     source,
+    kind: 'image',
     mimeType: 'image/png',
     sizeBytes: 100,
     width: 4,
@@ -95,7 +96,13 @@ describe('attachments in PostgreSQL', () => {
   it('claims a generation job exactly once', async () => {
     const userId = await newUser();
     const jobs = createPrismaGenerationJobRepository(prisma);
-    const job = await jobs.create({ userId, provider: 'pixels', model: 'pix-1', prompt: 'a fox' });
+    const job = await jobs.create({
+      userId,
+      kind: 'image',
+      provider: 'pixels',
+      model: 'pix-1',
+      prompt: 'a fox',
+    });
     const [first, second] = await Promise.all([
       jobs.claim(job.id, new Date()),
       jobs.claim(job.id, new Date()),

@@ -30,6 +30,40 @@ export async function postEventStream<Event>(
     throw new NetworkError(error);
   }
 
+  return readEventStream(response, options);
+}
+
+/** GETs Server-Sent Events with the session cookie. Same error behaviour as postEventStream. */
+export async function getEventStream<Event>(
+  path: string,
+  options: {
+    parse: (event: string, data: string) => Event | null;
+    signal: AbortSignal;
+    onEvent: (event: Event) => void;
+  },
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(apiUrl(path), {
+      credentials: 'include',
+      headers: { accept: 'text/event-stream' },
+      signal: options.signal,
+    });
+  } catch (error) {
+    if (options.signal.aborted) throw error;
+    throw new NetworkError(error);
+  }
+  return readEventStream(response, options);
+}
+
+async function readEventStream<Event>(
+  response: Response,
+  options: {
+    parse: (event: string, data: string) => Event | null;
+    signal: AbortSignal;
+    onEvent: (event: Event) => void;
+  },
+): Promise<void> {
   if (!response.ok) throw await toApiError(response);
   if (!response.body) {
     throw new ApiError({

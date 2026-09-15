@@ -28,7 +28,6 @@ export function createMemoryAttachments(
     create: async (input) => {
       const record: AttachmentRecord = {
         ...input,
-        kind: 'image',
         messageId: null,
         createdAt: now(),
         attachedAt: null,
@@ -54,7 +53,8 @@ export function createMemoryAttachments(
           ids.includes(record.id) &&
           record.userId === userId &&
           record.messageId === null &&
-          record.source === 'upload'
+          record.source === 'upload' &&
+          record.kind === 'image'
         ) {
           record.messageId = messageId;
           record.attachedAt = at;
@@ -134,20 +134,25 @@ export function createMemoryStorage(): MemoryStorage {
 
 export type MemoryGenerationJobs = GenerationJobRepository & { data: GenerationJobRecord[] };
 
-export function createMemoryGenerationJobs(): MemoryGenerationJobs {
+/** In-memory GenerationJobRepository with the same compare-and-set rules as the SQL one. */
+export function createMemoryGenerationJobs(
+  now: () => Date = () => new Date(),
+): MemoryGenerationJobs {
   const data: GenerationJobRecord[] = [];
   const find = (id: string) => data.find((job) => job.id === id);
+  const active = (job: GenerationJobRecord | undefined) =>
+    job !== undefined && (job.status === 'QUEUED' || job.status === 'PROCESSING');
+
   return {
     data,
     create: async (input) => {
       const job: GenerationJobRecord = {
         id: randomUUID(),
         ...input,
-        kind: 'image',
         status: 'QUEUED',
         errorCode: null,
         attachmentId: null,
-        createdAt: new Date(),
+        createdAt: now(),
         startedAt: null,
         completedAt: null,
       };
@@ -158,6 +163,12 @@ export function createMemoryGenerationJobs(): MemoryGenerationJobs {
       const job = find(id);
       return job && job.userId === userId ? { ...job } : null;
     },
+    listForUser: async (userId, kind, limit) =>
+      data
+        .filter((job) => job.userId === userId && (kind === null || job.kind === kind))
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        .slice(0, limit)
+        .map((job) => ({ ...job })),
     claim: async (id, at) => {
       const job = find(id);
       if (!job || job.status !== 'QUEUED') return false;
@@ -166,15 +177,34 @@ export function createMemoryGenerationJobs(): MemoryGenerationJobs {
     },
     complete: async (id, attachmentId, at) => {
       const job = find(id);
-      if (job?.status === 'PROCESSING') {
-        Object.assign(job, { status: 'COMPLETED', attachmentId, completedAt: at });
-      }
+      if (job?.status !== 'PROCESSING') return false;
+      Object.assign(job, { status: 'COMPLETED', attachmentId, completedAt: at });
+      return true;
     },
     fail: async (id, errorCode, at) => {
       const job = find(id);
-      if (job && (job.status === 'QUEUED' || job.status === 'PROCESSING')) {
-        Object.assign(job, { status: 'FAILED', errorCode, completedAt: at });
-      }
+      if (!active(job)) return false;
+      Object.assign(job as GenerationJobRecord, { status: 'FAILED', errorCode, completedAt: at });
+      return true;
     },
+    cancel: async (id, userId, at) => {
+      const job = find(id);
+      if (!active(job) || job?.userId !== userId) return false;
+      Object.assign(job, { status: 'CANCELLED', completedAt: at });
+      return true;
+    },
+    listStale: async ({ kind, processingStartedBefore, queuedCreatedBefore, limit }) =>
+      data
+        .filter(
+          (job) =>
+            job.kind === kind &&
+            ((job.status === 'PROCESSING' &&
+              job.startedAt !== null &&
+              job.startedAt < processingStartedBefore) ||
+              (job.status === 'QUEUED' && job.createdAt < queuedCreatedBefore)),
+        )
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+        .slice(0, limit)
+        .map((job) => ({ ...job })),
   };
 }

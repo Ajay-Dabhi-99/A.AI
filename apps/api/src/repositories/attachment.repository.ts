@@ -1,8 +1,9 @@
 import type { PrismaClient } from '../generated/prisma/client.js';
 
-/** Image attachment metadata (Phase 8, ADR-015). The bytes live in object storage. */
+/** Attachment metadata (Phases 8–9, ADR-015, ADR-016). The bytes live in object storage. */
 
 export type AttachmentSourceValue = 'upload' | 'generated';
+export type AttachmentKindValue = 'image' | 'video';
 
 export type AttachmentRecord = {
   id: string;
@@ -13,8 +14,9 @@ export type AttachmentRecord = {
   source: string;
   mimeType: string;
   sizeBytes: number;
-  width: number;
-  height: number;
+  /** Null for videos. */
+  width: number | null;
+  height: number | null;
   sha256: string;
   fileName: string | null;
   storageKey: string;
@@ -33,7 +35,7 @@ export type NewAttachment = Pick<
   | 'sha256'
   | 'fileName'
   | 'storageKey'
-> & { source: AttachmentSourceValue };
+> & { source: AttachmentSourceValue; kind: AttachmentKindValue };
 
 export interface AttachmentRepository {
   create(data: NewAttachment): Promise<AttachmentRecord>;
@@ -42,7 +44,7 @@ export interface AttachmentRepository {
   /** The user's attachments among `ids` (missing and foreign ids are left out). */
   findManyForUser(ids: string[], userId: string): Promise<AttachmentRecord[]>;
   /**
-   * Links unsent attachments to a message. Only rows that belong to the user and
+   * Links unsent uploads to a message. Only rows that belong to the user and
    * are not attached yet change, so two requests cannot send the same image.
    * Resolves the number of rows linked.
    */
@@ -58,7 +60,7 @@ export interface AttachmentRepository {
 
 export function createPrismaAttachmentRepository(prisma: PrismaClient): AttachmentRepository {
   return {
-    create: (data) => prisma.attachment.create({ data: { ...data, kind: 'image' } }),
+    create: (data) => prisma.attachment.create({ data }),
 
     findForUser: (id, userId) => prisma.attachment.findFirst({ where: { id, userId } }),
 
@@ -70,7 +72,7 @@ export function createPrismaAttachmentRepository(prisma: PrismaClient): Attachme
     attachToMessage: async (ids, userId, messageId, at) =>
       (
         await prisma.attachment.updateMany({
-          where: { id: { in: ids }, userId, messageId: null, source: 'upload' },
+          where: { id: { in: ids }, userId, messageId: null, source: 'upload', kind: 'image' },
           data: { messageId, attachedAt: at },
         })
       ).count,

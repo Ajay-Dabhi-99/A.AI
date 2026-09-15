@@ -1,11 +1,7 @@
 import type { Attachment } from '@a-ai/shared-types';
-import { useQuery } from '@tanstack/react-query';
 import { ImageOff } from 'lucide-react';
+import { useSignedUrl } from '@/features/attachments/use-signed-url';
 import { cn } from '@/lib/utils';
-import { fetchAttachmentUrl } from '@/services/attachments';
-
-/** Signed URLs last 5 minutes on the server; refresh a little before that. */
-const URL_STALE_MS = 4 * 60_000;
 
 /** One of the user's private images, shown through a short-lived signed URL. */
 export function AttachmentImage({
@@ -15,13 +11,7 @@ export function AttachmentImage({
   attachment: Attachment;
   className?: string;
 }) {
-  const signed = useQuery({
-    queryKey: ['attachment-url', attachment.id],
-    queryFn: ({ signal }) => fetchAttachmentUrl(attachment.id, signal),
-    staleTime: URL_STALE_MS,
-    gcTime: URL_STALE_MS,
-    retry: false,
-  });
+  const signed = useSignedUrl(attachment.id);
   const label = attachment.fileName ?? 'Attached image';
 
   if (signed.isError) {
@@ -52,8 +42,8 @@ export function AttachmentImage({
     <img
       src={signed.data.url}
       alt={label}
-      width={attachment.width}
-      height={attachment.height}
+      width={attachment.width ?? undefined}
+      height={attachment.height ?? undefined}
       loading="lazy"
       className={cn('h-auto', className)}
     />

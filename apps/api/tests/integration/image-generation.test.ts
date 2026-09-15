@@ -112,7 +112,7 @@ describe('image generation jobs (ADR-015 §6)', () => {
     const queued = imageJobResponseSchema.parse(started.json()).job;
     expect(queued).toMatchObject({ status: 'queued', prompt: 'a red fox', attachment: null });
 
-    await context.app.services.image.idle();
+    await context.app.services.jobs.idle();
     const finished = await job(context, cookies, queued.id);
     const completed = imageJobResponseSchema.parse(finished.body).job;
     expect(completed.status).toBe('completed');
@@ -150,11 +150,11 @@ describe('image generation jobs (ADR-015 §6)', () => {
     const timedOut = imageJobResponseSchema.parse(
       (await generate(context, cookies, {})).json(),
     ).job;
-    await context.app.services.image.idle();
+    await context.app.services.jobs.idle();
     const disguised = imageJobResponseSchema.parse(
       (await generate(context, cookies, {})).json(),
     ).job;
-    await context.app.services.image.idle();
+    await context.app.services.jobs.idle();
 
     expect(
       imageJobResponseSchema.parse((await job(context, cookies, timedOut.id)).body).job,
@@ -184,6 +184,6 @@ describe('image generation jobs (ADR-015 §6)', () => {
     expect((await generate(ctx, cookies, {})).statusCode).toBe(202);
     const limited = await generate(ctx, cookies, {});
     expect(limited.statusCode).toBe(429);
-    await context.app.services.image.idle();
+    await context.app.services.jobs.idle();
   });
 });

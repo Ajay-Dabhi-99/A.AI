@@ -8,7 +8,9 @@ import { registerOriginCheck } from './middleware/origin-check.js';
 import { registerApiRateLimit } from './middleware/rate-limit.js';
 import { attachmentRoutes } from './modules/attachments/attachment.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
-import { imageRoutes } from './modules/image/image.routes.js';
+import { audioRoutes } from './modules/audio/audio.routes.js';
+import { JOB_RECOVERY_INTERVAL_MS } from './modules/jobs/job-center.js';
+import { mediaRoutes } from './modules/jobs/media.routes.js';
 import { chatRoutes } from './modules/chat/chat.routes.js';
 import { comparisonRoutes } from './modules/comparison/comparison.routes.js';
 import { historyRoutes } from './modules/history/history.routes.js';
@@ -75,11 +77,24 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   registerOriginCheck(app, env);
   registerApiRateLimit(app);
   // Background summaries are bounded by their own timeout; let them finish before shutdown.
+  // Jobs a stopped instance left behind are failed or started again (ADR-016), at startup and
+  // periodically. Never awaited: a slow database must not delay readiness.
+  let recovery: NodeJS.Timeout | undefined;
+  const recoverJobs = () =>
+    app.services.jobs.recover().catch((error: unknown) => {
+      app.log.error({ err: error, event: 'media.job.recover.failed' }, 'job recovery failed');
+    });
+  app.addHook('onReady', async () => {
+    void recoverJobs();
+    recovery = setInterval(() => void recoverJobs(), JOB_RECOVERY_INTERVAL_MS);
+    recovery.unref();
+  });
   app.addHook('onClose', async () => {
-    await Promise.all([app.services.context.idle(), app.services.image.idle()]);
+    clearInterval(recovery);
+    await Promise.all([app.services.context.idle(), app.services.jobs.idle()]);
   });
 
-  // Multipart is parsed only by routes that ask for it (image uploads); limits are per route too.
+  // Multipart is parsed only by routes that ask for it (uploads, recordings); each sets its own limits.
   await app.register(multipart, {
     limits: { fileSize: env.ATTACHMENT_MAX_BYTES, files: 1, fields: 0, parts: 1, headerPairs: 50 },
   });
@@ -92,7 +107,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(historyRoutes);
   await app.register(modelRoutes);
   await app.register(attachmentRoutes);
-  await app.register(imageRoutes);
+  await app.register(mediaRoutes);
+  await app.register(audioRoutes);
 
   return app;
 }

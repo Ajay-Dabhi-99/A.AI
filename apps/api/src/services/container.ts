@@ -47,9 +47,14 @@ import {
   createPrismaHistoryRepository,
   type HistoryRepository,
 } from '../repositories/history.repository.js';
-import type { ImageGenerationProvider } from '@a-ai/ai-core';
+import type { MediaGenerationProvider, TranscriptionProvider } from '@a-ai/ai-core';
+import { GroqTranscriptionProvider } from '@a-ai/ai-providers';
+import type { MediaJobKind } from '@a-ai/shared-types';
 import { AttachmentService } from '../modules/attachments/attachment.service.js';
-import { ImageGenerationService } from '../modules/image/image-generation.service.js';
+import { TranscriptionService } from '../modules/audio/transcription.service.js';
+import { JobCenter } from '../modules/jobs/job-center.js';
+import { MediaJobService } from '../modules/jobs/media-job.service.js';
+import type { RateLimitRule } from './rate-limit.service.js';
 import {
   createPrismaAttachmentRepository,
   type AttachmentRepository,
@@ -98,8 +103,10 @@ export type AppServices = {
   history: HistoryService;
   /** Image uploads in private object storage (Phase 8). */
   attachments: AttachmentService;
-  /** Image-generation jobs; disabled while no image provider is registered (Phase 8). */
-  image: ImageGenerationService;
+  /** Image and video generation jobs; each kind is off while it has no provider (Phases 8–9). */
+  jobs: JobCenter;
+  /** Speech-to-text; off without a speech-to-text key (Phase 9). */
+  transcription: TranscriptionService;
   email: EmailSender;
   clock: Clock;
   /** JWT_SECRET: keys every HMAC (sessions, links, IPs, emails). */
@@ -133,9 +140,16 @@ export type ServiceOverrides = {
   /** Replaces Supabase Storage (or the disabled storage when it is not configured). */
   storage?: ObjectStorage;
   generationJobs?: GenerationJobRepository;
-  /** Image providers; production registers none in Phase 8. */
-  imageProviders?: ImageGenerationProvider[];
+  /** Image providers; production registers none yet. */
+  imageProviders?: MediaGenerationProvider[];
   imageJobTimeoutMs?: number;
+  /** Video providers; production registers none yet (Phase 9). */
+  videoProviders?: MediaGenerationProvider[];
+  videoJobTimeoutMs?: number;
+  /** Faster job event streams, so tests need not wait a second per update. */
+  jobStreamPollMs?: number;
+  /** Replaces the speech-to-text adapter; null turns voice input off. */
+  transcription?: TranscriptionProvider | null;
 };
 
 function storageFromEnv(env: ServerEnv): ObjectStorage {
@@ -209,9 +223,36 @@ export function createServices(input: {
     rateLimiter,
     uploadRule: rateLimits.uploadByUser,
     maxBytes: env.ATTACHMENT_MAX_BYTES,
+    videoMaxBytes: env.VIDEO_MAX_BYTES,
     clock,
     logger,
   });
+
+  const generationJobs = overrides.generationJobs ?? createPrismaGenerationJobRepository(prisma);
+  const mediaJobs = (
+    kind: MediaJobKind,
+    providers: MediaGenerationProvider[],
+    rule: RateLimitRule,
+    timeoutMs: number | undefined,
+  ) =>
+    new MediaJobService({
+      kind,
+      providers,
+      jobs: generationJobs,
+      attachments,
+      store,
+      rateLimiter,
+      rule,
+      clock,
+      logger,
+      ...(timeoutMs === undefined ? {} : { timeoutMs }),
+    });
+  const transcriptionProvider =
+    overrides.transcription !== undefined
+      ? overrides.transcription
+      : env.GROQ_API_KEY
+        ? new GroqTranscriptionProvider({ apiKey: env.GROQ_API_KEY })
+        : null;
 
   const sessions = new SessionService({
     sessions: repositories.sessions,
@@ -282,18 +323,36 @@ export function createServices(input: {
       logger,
     }),
     attachments,
-    image: new ImageGenerationService({
-      providers: overrides.imageProviders ?? [],
-      jobs: overrides.generationJobs ?? createPrismaGenerationJobRepository(prisma),
-      attachments,
-      store,
-      rateLimiter,
-      rule: rateLimits.imageByUser,
-      clock,
-      logger,
-      ...(overrides.imageJobTimeoutMs === undefined
+    jobs: new JobCenter({
+      jobs: generationJobs,
+      services: {
+        image: mediaJobs(
+          'image',
+          overrides.imageProviders ?? [],
+          rateLimits.imageByUser,
+          overrides.imageJobTimeoutMs,
+        ),
+        video: mediaJobs(
+          'video',
+          overrides.videoProviders ?? [],
+          rateLimits.videoByUser,
+          overrides.videoJobTimeoutMs,
+        ),
+      },
+      ...(overrides.jobStreamPollMs === undefined
         ? {}
-        : { timeoutMs: overrides.imageJobTimeoutMs }),
+        : { streamPollMs: overrides.jobStreamPollMs }),
+    }),
+    transcription: new TranscriptionService({
+      provider: transcriptionProvider,
+      rateLimiter,
+      rules: {
+        user: rateLimits.transcribeByUser,
+        guest: rateLimits.transcribeByGuest,
+        guestIp: rateLimits.transcribeByIp,
+      },
+      maxBytes: env.AUDIO_MAX_BYTES,
+      logger,
     }),
     email,
     clock,

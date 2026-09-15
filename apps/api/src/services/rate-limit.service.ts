@@ -28,6 +28,12 @@ export const RATE_LIMITS = {
   linkByIp: { name: 'link-ip', limit: 30, windowMs: 15 * MINUTE },
   /** Image uploads per signed-in user (Phase 8). */
   uploadByUser: { name: 'upload-user', limit: 30, windowMs: 60 * MINUTE },
+  /** Voice transcriptions (Phase 9): per user, per guest session, and per guest IP. */
+  transcribeByUser: { name: 'stt-user', limit: 60, windowMs: 60 * MINUTE },
+  transcribeByGuest: { name: 'stt-guest', limit: 10, windowMs: 60 * MINUTE },
+  transcribeByIp: { name: 'stt-ip', limit: 30, windowMs: 60 * MINUTE },
+  /** Video-generation jobs per signed-in user per day (Phase 9). */
+  videoByUser: { name: 'video-user', limit: 5, windowMs: 24 * 60 * MINUTE },
   /** Image-generation jobs per signed-in user per day (Phase 8). */
   imageByUser: { name: 'image-user', limit: 20, windowMs: 24 * 60 * MINUTE },
 } as const satisfies Record<string, RateLimitRule>;
