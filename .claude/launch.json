@@ -1,0 +1,30 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev:api"],
+      "port": 4000
+    },
+    {
+      "name": "api-run",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@a-ai/api",
+        "exec",
+        "tsx",
+        "--conditions=@a-ai/source",
+        "src/server.ts"
+      ],
+      "port": 4000
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev:web"],
+      "port": 5180
+    }
+  ]
+}
