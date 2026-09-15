@@ -18,6 +18,7 @@ import { healthRoutes } from './modules/health/health.routes.js';
 import { modelRoutes } from './modules/models/models.routes.js';
 import { meRoutes } from './modules/users/me.routes.js';
 import { registerCorsAndSecurity } from './plugins/cors.js';
+import type { ErrorReporter } from './plugins/error-reporting.js';
 import { genReqId, loggerOptions, registerObservability } from './plugins/observability.js';
 import { createPrismaClient, registerPrisma } from './plugins/prisma.js';
 import { createRedisClient, registerRedis } from './plugins/redis.js';
@@ -34,7 +35,29 @@ export type BuildAppOptions = {
   /** Test seam: replace repositories, email delivery, hashing, time or rate limits. */
   services?: ServiceOverrides;
   logger?: FastifyServerOptions['logger'];
+  /** Unexpected errors are reported here (Sentry when SENTRY_DSN is set). */
+  errorReporter?: ErrorReporter;
 };
+
+/**
+ * How many proxies' X-Forwarded-For entries to trust for the client address
+ * (rate limits and guest IP hashes depend on it). Trusting every hop would let
+ * a client write its own address; production defaults to one hop, Render's.
+ */
+export function trustedProxyHops(env: ServerEnv): number {
+  return env.TRUST_PROXY_HOPS ?? (env.NODE_ENV === 'production' ? 1 : 0);
+}
+
+/**
+ * Fastify 5 ignores a plain hop count (it cannot check the peer's address), so
+ * the count is applied as a trust function. This is safe only where every
+ * connection arrives through the host's proxy, as on Render, where the service
+ * port is not publicly reachable.
+ */
+function trustProxyHops(env: ServerEnv): (address: string, hop: number) => boolean {
+  const hops = trustedProxyHops(env);
+  return (_address, hop) => hop < hops;
+}
 
 /**
  * Composes the API. Order matters: observability first so every later
@@ -54,11 +77,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       disableRequestLogging: true,
     }),
     bodyLimit: BODY_LIMIT_BYTES,
-    // Render/Vercel terminate TLS in front of the API.
-    trustProxy: env.NODE_ENV === 'production',
+    // Render terminates TLS in front of the API (security review S-1).
+    trustProxy: trustProxyHops(env),
   });
 
-  registerObservability(app);
+  registerObservability(app, options.errorReporter);
   await registerCorsAndSecurity(app, env);
   await app.register(cookie);
 

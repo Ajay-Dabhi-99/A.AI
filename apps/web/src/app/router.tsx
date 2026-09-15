@@ -1,21 +1,24 @@
 import { createBrowserRouter, type RouteObject } from 'react-router';
 import { ChatPage } from '@/pages/chat-page';
-import { ComparePage } from '@/pages/compare-page';
-import { ComparisonDetailPage } from '@/pages/comparison-detail-page';
-import { ConversationRunsPage } from '@/pages/conversation-runs-page';
-import { DashboardPage } from '@/pages/dashboard-page';
-import { HistoryPage } from '@/pages/history-page';
-import { ImagePage } from '@/pages/image-page';
+import { ErrorPage } from '@/pages/error-page';
 import { ForgotPasswordPage } from '@/pages/forgot-password-page';
 import { LandingPage } from '@/pages/landing-page';
 import { LoginPage } from '@/pages/login-page';
-import { ModelsPage } from '@/pages/models-page';
 import { NotFoundPage } from '@/pages/not-found-page';
 import { ResetPasswordPage } from '@/pages/reset-password-page';
-import { SettingsPage } from '@/pages/settings-page';
 import { SignupPage } from '@/pages/signup-page';
 import { VerifyEmailPage } from '@/pages/verify-email-page';
-import { VideoPage } from '@/pages/video-page';
+import {
+  ComparePage,
+  ComparisonDetailPage,
+  ConversationRunsPage,
+  DashboardPage,
+  HistoryPage,
+  ImagePage,
+  ModelsPage,
+  SettingsPage,
+  VideoPage,
+} from './lazy-pages';
 import { RequireUser } from './require-user';
 import { RootLayout } from './root-layout';
 
@@ -23,6 +26,8 @@ import { RootLayout } from './root-layout';
 export const routes: RouteObject[] = [
   {
     element: <RootLayout />,
+    // A page that crashes shows a recovery screen instead of a blank app (Phase 10).
+    errorElement: <ErrorPage />,
     children: [
       { index: true, element: <LandingPage /> },
       { path: 'login', element: <LoginPage /> },

@@ -3,6 +3,7 @@ import type { IncomingMessage } from 'node:http';
 import type { ServerEnv } from '@a-ai/config/server';
 import type { FastifyInstance, FastifyServerOptions } from 'fastify';
 import { toApiError } from '../shared/errors/to-api-error.js';
+import { noopErrorReporter, type ErrorReporter } from './error-reporting.js';
 
 const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{8,128}$/;
 
@@ -42,7 +43,10 @@ export function loggerOptions(env: ServerEnv): FastifyServerOptions['logger'] {
  * Request correlation, one structured completion log per request (blueprint
  * §14 minimum fields that exist in Phase 0), and the global error envelope.
  */
-export function registerObservability(app: FastifyInstance): void {
+export function registerObservability(
+  app: FastifyInstance,
+  reporter: ErrorReporter = noopErrorReporter,
+): void {
   app.addHook('onRequest', async (request, reply) => {
     reply.header('x-request-id', request.id);
   });
@@ -63,6 +67,12 @@ export function registerObservability(app: FastifyInstance): void {
     const normalized = toApiError(error, request.id);
     if (normalized.unexpected) {
       request.log.error({ err: error }, 'unhandled error');
+      // Identifiers only; the reporter scrubs anything else (ADR-017).
+      reporter.capture(error, {
+        requestId: request.id,
+        method: request.method,
+        route: request.routeOptions.url ?? 'unmatched',
+      });
     } else {
       request.log.info({ errorCode: normalized.body.error.code }, 'request rejected');
     }

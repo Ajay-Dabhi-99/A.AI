@@ -15,6 +15,8 @@ export async function healthRoutes(
       status: 'ok',
       service: SERVICE_NAME,
       version: APP_VERSION,
+      // Lets the release smoke test confirm the new build is the one answering (ADR-017).
+      commit: options.env.RENDER_GIT_COMMIT ?? null,
       uptimeSeconds: Math.round(process.uptime()),
     };
   });

@@ -13,6 +13,12 @@ export const webEnvSchema = z.object({
       (value) => value === '' || /^https?:\/\/[^/]+$/.test(value),
       'must be empty (same-origin) or an http(s) origin with no path',
     ),
+  /** Sentry DSN for browser error reports; empty sends nothing (ADR-017). DSNs are public by design. */
+  VITE_SENTRY_DSN: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || undefined)
+    .pipe(z.url().optional()),
 });
 
 export type WebEnv = z.infer<typeof webEnvSchema>;

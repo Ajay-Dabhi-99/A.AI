@@ -24,6 +24,8 @@
     "check:env": "tsx scripts/check-env.ts",
     "admin:promote": "tsx --conditions=@a-ai/source scripts/promote-admin.ts",
     "attachments:cleanup": "tsx --conditions=@a-ai/source scripts/cleanup-attachments.ts",
+    "smoke": "tsx --conditions=@a-ai/source scripts/smoke.ts",
+    "test:e2e": "pnpm --filter @a-ai/web test:e2e",
     "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

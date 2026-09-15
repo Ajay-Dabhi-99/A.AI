@@ -1,6 +1,8 @@
+import { Suspense } from 'react';
 import { Outlet, ScrollRestoration } from 'react-router';
 import { SiteFooter } from '@/components/layout/site-footer';
 import { SiteHeader } from '@/components/layout/site-header';
+import { PageSpinner } from '@/components/ui/spinner';
 
 export function RootLayout() {
   return (
@@ -13,7 +15,10 @@ export function RootLayout() {
       </a>
       <SiteHeader />
       <main id="main" className="flex-1">
-        <Outlet />
+        {/* Pages outside the main chat flow load on demand (Phase 10 performance). */}
+        <Suspense fallback={<PageSpinner label="Loading page" />}>
+          <Outlet />
+        </Suspense>
       </main>
       <SiteFooter />
       <ScrollRestoration />

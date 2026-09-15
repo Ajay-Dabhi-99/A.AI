@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { EnvValidationError, parseServerEnv, type ServerEnv } from '@a-ai/config/server';
 import { buildApp } from './app.js';
+import { createSentryReporter, type ErrorReporter } from './plugins/error-reporting.js';
 
 // Local development reads the repository-root .env; hosted environments inject variables.
 const envFile = resolve(import.meta.dirname, '../../../.env');
@@ -18,7 +19,21 @@ try {
   throw error;
 }
 
-const app = await buildApp({ env });
+// Error reports leave the server only when a DSN is configured (ADR-017).
+const errorReporter: ErrorReporter | undefined = env.SENTRY_DSN
+  ? await createSentryReporter({
+      dsn: env.SENTRY_DSN,
+      environment: env.SENTRY_ENVIRONMENT ?? env.NODE_ENV,
+      ...(env.RENDER_GIT_COMMIT ? { release: env.RENDER_GIT_COMMIT } : {}),
+    })
+  : undefined;
+
+const app = await buildApp({ env, ...(errorReporter ? { errorReporter } : {}) });
+
+process.on('unhandledRejection', (reason) => {
+  app.log.error({ err: reason }, 'unhandled promise rejection');
+  errorReporter?.capture(reason, { source: 'unhandledRejection' });
+});
 
 let shuttingDown = false;
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
@@ -28,6 +43,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   const forceExit = setTimeout(() => process.exit(1), 10_000);
   forceExit.unref();
   await app.close();
+  await errorReporter?.flush(2_000);
   process.exit(0);
 }
 
@@ -38,5 +54,7 @@ try {
   await app.listen({ port: env.PORT, host: env.HOST });
 } catch (error) {
   app.log.fatal({ err: error }, 'failed to start');
+  errorReporter?.capture(error, { source: 'startup' });
+  await errorReporter?.flush(2_000);
   process.exit(1);
 }

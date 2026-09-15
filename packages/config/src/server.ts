@@ -108,6 +108,19 @@ export const serverEnvSchema = z
     AUDIO_MAX_BYTES: z.coerce.number().int().min(102_400).max(26_214_400).default(10_485_760),
     /** Largest generated video stored (1 MiB to 200 MiB, default 50 MiB). */
     VIDEO_MAX_BYTES: z.coerce.number().int().min(1_048_576).max(209_715_200).default(52_428_800),
+    /**
+     * Proxies in front of the API whose X-Forwarded-For entries are trusted for the client
+     * address (ADR-017). Unset: 1 in production (Render), 0 elsewhere.
+     */
+    TRUST_PROXY_HOPS: optionalString
+      .transform((value) => (value === undefined ? undefined : Number(value)))
+      .pipe(z.number().int().min(0).max(5).optional()),
+    /** Sentry DSN for API error reports; empty sends nothing (ADR-017). */
+    SENTRY_DSN: optionalString.pipe(z.url().optional()),
+    /** Sentry environment name; defaults to NODE_ENV. */
+    SENTRY_ENVIRONMENT: optionalString,
+    /** Set by Render on each deploy; reported by GET /health so a smoke test can confirm the build. */
+    RENDER_GIT_COMMIT: optionalString,
     /** Let another healthy model answer when the chosen one fails before sending text (ADR-013). */
     CHAT_FALLBACK_ENABLED: z
       .enum(['true', 'false'])

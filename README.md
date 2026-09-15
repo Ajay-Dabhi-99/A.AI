@@ -62,6 +62,8 @@ Ports 4000/5180 avoid clashing with other local projects on 3000/5000/5173.
 | `pnpm db:seed`             | Insert default models into the registry (never overwrites edits)             |
 | `pnpm admin:promote`       | `pnpm admin:promote <email> [--revoke]`: grant or remove the admin role      |
 | `pnpm attachments:cleanup` | Remove image uploads never sent within 24 hours (schedule daily)             |
+| `pnpm test:e2e`            | Playwright browser smoke with a mocked API (needs Chromium)                  |
+| `pnpm smoke`               | `pnpm smoke --api <url> [--web <origin>]`: check a deployed release          |
 
 ## Repository layout
 
@@ -82,6 +84,7 @@ docs/               Architecture, API, phases, decisions, learning guide
 
 - [Learning guide: what each phase builds and where](docs/development/learning-guide.md)
 - [Roadmap and tracker](docs/development/roadmap.md)
+- [Deployment, backups and rollback](docs/development/deployment.md)
 - [System architecture](docs/architecture/system-architecture.md)
 - [Repository architecture](docs/architecture/repository-architecture.md)
 - [API reference](docs/api/health.md)

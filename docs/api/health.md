@@ -18,8 +18,10 @@ Liveness. Never touches dependencies.
 
 ```json
 200 OK
-{ "status": "ok", "service": "a-ai-api", "version": "0.1.0", "uptimeSeconds": 42 }
+{ "status": "ok", "service": "a-ai-api", "version": "0.1.0", "commit": "914d0a5…", "uptimeSeconds": 42 }
 ```
+
+`commit` is the deployed commit that Render provides as `RENDER_GIT_COMMIT`, or `null` when unknown (locally). The release smoke test waits for it to match the commit being deployed (Phase 10, [ADR-017](../decisions/ADR-017-production-hosting.md)).
 
 ## `GET /ready`
 

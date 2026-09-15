@@ -3,6 +3,8 @@ export type HealthResponse = {
   status: 'ok';
   service: 'a-ai-api';
   version: string;
+  /** The deployed commit (Render sets it); null when unknown, e.g. locally. */
+  commit: string | null;
   uptimeSeconds: number;
 };
 

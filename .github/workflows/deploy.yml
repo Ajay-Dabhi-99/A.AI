@@ -1,6 +1,6 @@
-# Promotes a commit only after the full gate passes on that exact commit
-# (blueprint §21.10). Hosting is wired in Phase 10: the API deploys through a
-# Render deploy hook, the web app through a Vercel deploy hook.
+# Promotes a commit only after the full gate passes on that exact commit, then
+# proves the deployment with the release smoke test (blueprint §18, §21.10; ADR-017).
+# The API deploys through a Render deploy hook, the web app through a Vercel deploy hook.
 name: Deploy
 
 on:
@@ -15,11 +15,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: deploy-${{ inputs.target }}
+  cancel-in-progress: false
+
 jobs:
   gate:
     name: Full gate
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     environment: test
     steps:
       - uses: actions/checkout@v4
@@ -30,9 +34,14 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm verify
+      - name: Browser smoke tests
+        run: |
+          pnpm --filter @a-ai/web exec playwright install --with-deps chromium
+          pnpm test:e2e
       - name: Live infrastructure tests
         env:
           TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+          TEST_DIRECT_URL: ${{ secrets.TEST_DIRECT_URL }}
           TEST_REDIS_URL: ${{ secrets.TEST_REDIS_URL }}
         run: pnpm test:live
 
@@ -40,19 +49,41 @@ jobs:
     name: Deploy to ${{ inputs.target }}
     needs: gate
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: ${{ inputs.target }}
     steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Check deployment settings (values are never printed)
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+          API_URL: ${{ vars.API_URL }}
+          WEB_ORIGIN: ${{ vars.WEB_ORIGIN }}
+        run: |
+          missing=0
+          for name in RENDER_DEPLOY_HOOK_URL VERCEL_DEPLOY_HOOK_URL API_URL WEB_ORIGIN; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not configured for the ${{ inputs.target }} environment"
+              missing=1
+            fi
+          done
+          exit $missing
+
       - name: Trigger API and web deploy hooks
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
           VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
         run: |
-          for name in RENDER_DEPLOY_HOOK_URL VERCEL_DEPLOY_HOOK_URL; do
-            if [ -z "${!name}" ]; then
-              echo "::error::Secret $name is not configured for the ${{ inputs.target }} environment (set up in Phase 10)"
-              exit 1
-            fi
-          done
           curl --fail --silent --show-error -X POST "$RENDER_DEPLOY_HOOK_URL" > /dev/null
           curl --fail --silent --show-error -X POST "$VERCEL_DEPLOY_HOOK_URL" > /dev/null
           echo "Deploy hooks triggered for commit $GITHUB_SHA"
+
+      - name: Release smoke test (waits for this commit, calls no AI provider)
+        run: pnpm smoke --api "${{ vars.API_URL }}" --web "${{ vars.WEB_ORIGIN }}" --commit "$GITHUB_SHA" --wait 900

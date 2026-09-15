@@ -4,6 +4,7 @@ import type { Redis } from 'ioredis';
 import RedisMock from 'ioredis-mock';
 import { buildApp } from '../../src/app.js';
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
+import type { ErrorReporter } from '../../src/plugins/error-reporting.js';
 import type { ServiceOverrides } from '../../src/services/container.js';
 import type { AIModel } from '@a-ai/shared-types';
 import { CapturingEmailSender, TestClock } from './fakes.js';
@@ -92,10 +93,12 @@ export async function buildTestApp(
     prisma?: PrismaClient;
     redis?: Redis;
     services?: ServiceOverrides;
+    errorReporter?: ErrorReporter;
   } = {},
 ): Promise<FastifyInstance> {
   const repositories = createMemoryRepositories();
   return buildApp({
+    ...(options.errorReporter ? { errorReporter: options.errorReporter } : {}),
     env: options.env ?? testEnv(),
     prisma: options.prisma ?? controlledPrisma(),
     redis: options.redis ?? controlledRedis(),

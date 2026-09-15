@@ -5,6 +5,7 @@ export const healthResponseSchema = z.object({
   status: z.literal('ok'),
   service: z.literal('a-ai-api'),
   version: z.string(),
+  commit: z.string().nullable(),
   uptimeSeconds: z.number().nonnegative(),
 }) satisfies z.ZodType<HealthResponse>;
 
