@@ -4,6 +4,16 @@
   "private": true,
   "type": "module",
   "description": "A.ai: multi-model AI workspace and comparison platform",
+  "license": "MIT",
+  "author": "Dabhi Ajay",
+  "homepage": "https://github.com/Ajay-Dabhi-99/A.AI#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ajay-Dabhi-99/A.AI.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Ajay-Dabhi-99/A.AI/issues"
+  },
   "packageManager": "pnpm@10.34.5",
   "engines": {
     "node": ">=22.13"
