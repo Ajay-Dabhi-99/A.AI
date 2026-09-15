@@ -2,7 +2,7 @@
 
 A multi-model AI workspace: chat with one model, or send the same prompt to several models in parallel and compare their answers with latency, token usage and cost side by side.
 
-> **Status:** Phase 0 (foundation) code complete. Final verification is waiting on live Supabase and Upstash credentials. See [docs/development/phase-0.md](docs/development/phase-0.md).
+> **Status:** all phases (0–10) are implemented: auth and guest mode, streaming chat, model registry, multi-model comparison, context management, fallback routing, history and analytics, image input, voice input and read-aloud, and release tooling. Production launch steps are in [docs/development/deployment.md](docs/development/deployment.md); progress is tracked in [docs/development/roadmap.md](docs/development/roadmap.md).
 
 ## Stack
 

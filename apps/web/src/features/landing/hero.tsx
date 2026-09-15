@@ -27,7 +27,7 @@ export function Hero() {
       <div className="relative mx-auto max-w-6xl px-5 pt-16 pb-20 sm:pt-24">
         <div className="mx-auto max-w-3xl text-center">
           <motion.div {...rise(0)}>
-            <Badge tone="primary">In development · early access soon</Badge>
+            <Badge tone="primary">Chat · Compare · Analyze</Badge>
           </motion.div>
 
           <motion.h1

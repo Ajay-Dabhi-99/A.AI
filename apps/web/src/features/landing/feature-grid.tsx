@@ -1,6 +1,8 @@
 import {
   Columns2,
   Gauge,
+  History,
+  Image as ImageIcon,
   Layers,
   ShieldCheck,
   UserRound,
@@ -38,6 +40,16 @@ const FEATURES: Feature[] = [
     body: 'Start without an account under a fair daily limit. Sign up to keep your history and raise the limit.',
   },
   {
+    icon: History,
+    title: 'History and usage dashboard',
+    body: 'Search, rename and reopen past chats and comparisons, and track your runs, tokens, latency and cost over time.',
+  },
+  {
+    icon: ImageIcon,
+    title: 'Images and voice',
+    body: 'Attach images for models that can see them, dictate a message, and have any answer read aloud.',
+  },
+  {
     icon: Layers,
     title: 'Provider-agnostic',
     body: 'OpenRouter, Gemini and Groq sit behind one interface, so new models plug in without changing the app.',
@@ -57,7 +69,7 @@ export function FeatureGrid() {
           </h2>
         </div>
 
-        <ul className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {FEATURES.map(({ icon: Icon, title, body }, index) => (
             <motion.li
               key={title}

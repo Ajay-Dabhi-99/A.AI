@@ -1,6 +1,23 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
+
+// Pages load on demand in the app (router lazy pages). Compiling them up front keeps a
+// test's first render from racing the module transform when the machine is busy.
+await Promise.all([
+  import('./src/pages/compare-page'),
+  import('./src/pages/models-page'),
+  import('./src/pages/image-page'),
+  import('./src/pages/video-page'),
+  import('./src/pages/settings-page'),
+  import('./src/pages/history-page'),
+  import('./src/pages/conversation-runs-page'),
+  import('./src/pages/comparison-detail-page'),
+  import('./src/pages/dashboard-page'),
+]);
+
+// findBy* queries wait longer than the 1 s default under parallel CI load.
+configure({ asyncUtilTimeout: 3_000 });
 
 afterEach(() => {
   cleanup();
