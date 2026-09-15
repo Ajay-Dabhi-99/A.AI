@@ -13,6 +13,8 @@ import type { FastifyBaseLogger } from 'fastify';
 import { buildContext, estimateTokens, type BuiltContext } from '../../ai/context-builder.js';
 import { estimateCostUsd } from '../../ai/cost.js';
 import { toRunError } from '../../ai/run-error.js';
+import type { TokenService } from '../../ai/token.service.js';
+import { normalizeUsage } from '../../ai/usage.js';
 import type { ModelRegistryService } from '../../providers/model-registry.service.js';
 import type {
   ComparisonRepository,
@@ -43,6 +45,7 @@ export type ComparisonServiceDeps = {
   comparisons: ComparisonRepository;
   guestComparisons: GuestComparisonStore;
   quota: QuotaService;
+  tokens: TokenService;
   limits: ComparisonLimits;
   clock: Clock;
   logger: FastifyBaseLogger;
@@ -53,6 +56,7 @@ type Target = {
   provider: AIProvider;
   model: AIModel;
   context: BuiltContext;
+  charsPerToken: number;
   maxOutputTokens: number;
 };
 
@@ -189,6 +193,7 @@ export class ComparisonService {
 
       const { provider, model } = resolved;
       const maxOutputTokens = Math.min(model.maxOutputTokens, CHAT_MAX_OUTPUT_TOKENS);
+      const charsPerToken = await this.#deps.tokens.charsPerToken(model);
       let context: BuiltContext;
       try {
         context = buildContext({
@@ -196,6 +201,7 @@ export class ComparisonService {
           history: [{ role: 'user', content: prompt }],
           contextWindow: model.contextWindow,
           maxOutputTokens,
+          charsPerToken,
         });
       } catch (error) {
         if (error instanceof AppError && error.code === 'CONTEXT_TOO_LARGE') {
@@ -207,7 +213,7 @@ export class ComparisonService {
         }
         throw error;
       }
-      targets.push({ provider, model, context, maxOutputTokens });
+      targets.push({ provider, model, context, charsPerToken, maxOutputTokens });
     }
     return targets;
   }
@@ -286,8 +292,8 @@ export class ComparisonService {
     requestSignal: AbortSignal,
     emit: EmitComparisonEvent,
   ): Promise<void> {
-    const { runId, provider, model, context, maxOutputTokens } = run;
-    const { comparisons, clock, logger } = this.#deps;
+    const { runId, provider, model, context, charsPerToken, maxOutputTokens } = run;
+    const { comparisons, tokens, clock, logger } = this.#deps;
     const elapsed = () => Math.round(performance.now() - requestStartedAt);
 
     // One controller per run: the request's abort reaches every run, a timeout only this one.
@@ -311,11 +317,10 @@ export class ComparisonService {
       latencyMs: number,
       content: string | null,
     ) => {
-      const finalUsage: AIUsage = usage ?? {
-        source: 'estimated',
+      const finalUsage = normalizeUsage(usage, {
         inputTokens: context.estimatedInputTokens,
-        outputTokens: estimateTokens(text),
-      };
+        outputTokens: estimateTokens(text, charsPerToken),
+      });
       const estimatedCostUsd = estimateCostUsd(model, finalUsage);
       if (caller.kind === 'user') {
         await comparisons
@@ -369,6 +374,21 @@ export class ComparisonService {
           estimatedCost: outcome.estimatedCostUsd,
         },
       });
+
+      const providerInput =
+        outcome.usage.source === 'provider' ? outcome.usage.inputTokens : undefined;
+      if (providerInput !== undefined) {
+        const characters = context.messages.reduce(
+          (sum, message) => sum + message.content.length,
+          0,
+        );
+        await tokens.record(model, characters, providerInput).catch((error: unknown) => {
+          logger.warn(
+            { err: error, runId, event: 'tokens.calibration.failed' },
+            'token calibration failed',
+          );
+        });
+      }
     } catch (error) {
       const latencyMs = elapsed();
       // Nothing was produced: this run should not use up daily allowance.

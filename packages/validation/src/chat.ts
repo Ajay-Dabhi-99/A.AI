@@ -122,6 +122,13 @@ export const chatStreamEventSchemas = {
     provider: z.string(),
     model: z.string(),
     conversationId: z.string().nullable(),
+    context: z.object({
+      inputTokens: z.number().int().nonnegative(),
+      budgetTokens: z.number().int().nonnegative(),
+      contextWindow: z.number().int().positive(),
+      droppedMessages: z.number().int().nonnegative(),
+      summaryIncluded: z.boolean(),
+    }),
   }),
   'message.delta': z.object({ runId: z.string(), text: z.string() }),
   usage: z.object({ runId: z.string(), usage: usageSchema }),

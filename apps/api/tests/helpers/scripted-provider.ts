@@ -29,11 +29,14 @@ export function testModel(provider: string, id: string, overrides: Partial<AIMod
 /**
  * A provider that plays back scripted chunks. Each call to `stream` consumes
  * the next script (the last one repeats), and every request is recorded.
+ * `chat` (used by summaries) answers from a separate queue of replies.
  */
 export class ScriptedProvider implements AIProvider {
   readonly id: string;
   readonly requests: AIChatRequest[] = [];
+  readonly chatRequests: AIChatRequest[] = [];
   #scripts: ScriptStep[][];
+  #chatReplies: (string | Error)[] = [];
 
   constructor(id: string, ...scripts: ScriptStep[][]) {
     this.id = id;
@@ -44,12 +47,28 @@ export class ScriptedProvider implements AIProvider {
     this.#scripts = scripts;
   }
 
+  /** Replies for `chat`, used in order. An Error is thrown instead of answering. */
+  setChatReplies(...replies: (string | Error)[]): void {
+    this.#chatReplies = replies;
+  }
+
   async getModels(): Promise<AIModel[]> {
     return [];
   }
 
-  async chat(): Promise<AIResponse> {
-    throw new Error('ScriptedProvider.chat is not used by the chat service');
+  async chat(request: AIChatRequest): Promise<AIResponse> {
+    this.chatRequests.push(request);
+    if (request.signal?.aborted) throw request.signal.reason;
+    const reply = this.#chatReplies.shift();
+    if (reply === undefined) throw new Error(`ScriptedProvider ${this.id} has no chat reply`);
+    if (reply instanceof Error) throw reply;
+    return {
+      provider: this.id,
+      model: request.model,
+      text: reply,
+      usage: { source: 'estimated' },
+      finishReason: 'stop',
+    };
   }
 
   async *stream(request: AIChatRequest): AsyncGenerator<AIStreamChunk> {

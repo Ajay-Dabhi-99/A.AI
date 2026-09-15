@@ -31,19 +31,26 @@ export function createMemoryConversations(): MemoryConversations {
     if (conversation) conversation.updatedAt = at;
   };
 
+  const newConversation = (
+    fields: Pick<ConversationRecord, 'userId' | 'title' | 'guestMigrationKey'>,
+  ): ConversationRecord => {
+    const at = now();
+    return {
+      id: randomUUID(),
+      ...fields,
+      summary: null,
+      summaryUpToMessageId: null,
+      summaryUpdatedAt: null,
+      createdAt: at,
+      updatedAt: at,
+    };
+  };
+
   return {
     data,
 
     create: async ({ userId, title }) => {
-      const at = now();
-      const conversation: ConversationRecord = {
-        id: randomUUID(),
-        userId,
-        title,
-        guestMigrationKey: null,
-        createdAt: at,
-        updatedAt: at,
-      };
+      const conversation = newConversation({ userId, title, guestMigrationKey: null });
       data.conversations.push(conversation);
       return { ...conversation };
     },
@@ -133,21 +140,24 @@ export function createMemoryConversations(): MemoryConversations {
       return { run: { ...run }, message: message ? { ...message, run: { ...run } } : null };
     },
 
+    updateSummary: async (conversationId, update) => {
+      const conversation = data.conversations.find((candidate) => candidate.id === conversationId);
+      if (!conversation || conversation.summaryUpToMessageId !== update.expectedUpToMessageId) {
+        return false;
+      }
+      conversation.summary = update.summary;
+      conversation.summaryUpToMessageId = update.upToMessageId;
+      conversation.summaryUpdatedAt = update.updatedAt;
+      return true;
+    },
+
     importGuestConversation: async ({ userId, title, guestMigrationKey, messages }) => {
       const existing = data.conversations.find(
         (candidate) => candidate.guestMigrationKey === guestMigrationKey,
       );
       if (existing) return { conversation: { ...existing }, created: false };
 
-      const at = now();
-      const conversation: ConversationRecord = {
-        id: randomUUID(),
-        userId,
-        title,
-        guestMigrationKey,
-        createdAt: at,
-        updatedAt: at,
-      };
+      const conversation = newConversation({ userId, title, guestMigrationKey });
       data.conversations.push(conversation);
       for (const imported of messages) {
         const message = {

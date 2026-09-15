@@ -7,6 +7,10 @@ export type ConversationRecord = {
   userId: string;
   title: string;
   guestMigrationKey: string | null;
+  /** Running summary of the messages up to `summaryUpToMessageId` (Phase 5, ADR-012). */
+  summary: string | null;
+  summaryUpToMessageId: string | null;
+  summaryUpdatedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -63,6 +67,14 @@ export type ImportedMessage = {
   run?: { provider: string; model: string; status: RunStatusValue; latencyMs?: number };
 };
 
+export type SummaryUpdate = {
+  summary: string;
+  upToMessageId: string;
+  updatedAt: Date;
+  /** The coverage the summary was built on; the write is skipped if it has changed since. */
+  expectedUpToMessageId: string | null;
+};
+
 export interface ConversationRepository {
   create(data: { userId: string; title: string }): Promise<ConversationRecord>;
   /** Null when it does not exist or belongs to someone else. */
@@ -79,6 +91,12 @@ export interface ConversationRepository {
     runId: string,
     completion: RunCompletion,
   ): Promise<{ run: RunRecord; message: MessageRecord | null }>;
+  /**
+   * Compare-and-set on the summary coverage, so an older summary never replaces
+   * a newer one. Does not change `updatedAt` (a summary is not user activity).
+   * Resolves true when the summary was saved.
+   */
+  updateSummary(conversationId: string, update: SummaryUpdate): Promise<boolean>;
   /**
    * Creates a conversation from a guest chat. Idempotent on guestMigrationKey:
    * a second call returns the existing conversation with created=false.
@@ -161,6 +179,18 @@ export function createPrismaConversationRepository(prisma: PrismaClient): Conver
         });
         return { run, message: message ? { ...message, run } : null };
       }),
+
+    // Raw SQL: Prisma's @updatedAt would otherwise mark the conversation as recently active.
+    updateSummary: async (conversationId, update) => {
+      const changed = await prisma.$executeRaw`
+        UPDATE "conversations"
+        SET "summary" = ${update.summary},
+            "summaryUpToMessageId" = ${update.upToMessageId}::uuid,
+            "summaryUpdatedAt" = ${update.updatedAt}
+        WHERE "id" = ${conversationId}::uuid
+          AND "summaryUpToMessageId" IS NOT DISTINCT FROM ${update.expectedUpToMessageId}::uuid`;
+      return changed === 1;
+    },
 
     importGuestConversation: async ({ userId, title, guestMigrationKey, messages }) => {
       try {

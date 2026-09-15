@@ -59,9 +59,23 @@ const modelsRoute = () =>
 
 type StreamEvent = [name: string, data: object];
 
+const CONTEXT = {
+  inputTokens: 1_300,
+  budgetTokens: 120_000,
+  contextWindow: 131_072,
+  droppedMessages: 0,
+  summaryIncluded: false,
+};
+
 const START: StreamEvent = [
   'message.start',
-  { runId: 'r1', provider: 'groq', model: 'openai/gpt-oss-20b', conversationId: null },
+  {
+    runId: 'r1',
+    provider: 'groq',
+    model: 'openai/gpt-oss-20b',
+    conversationId: null,
+    context: CONTEXT,
+  },
 ];
 const DONE: StreamEvent = [
   'message.done',
@@ -136,6 +150,8 @@ describe('chat page as a guest', () => {
     expect(screen.getByText('What is a vector database?')).toBeInTheDocument();
     expect(await screen.findByText('GPT-OSS 20B · 1.2s')).toBeInTheDocument();
     expect(screen.getByLabelText('Message')).toHaveValue('');
+    // The composer shows how much of the model's context the request used.
+    expect(screen.getByText(/Context 1\.3k of 120k tokens \(1%\)/)).toBeInTheDocument();
 
     const [request] = callsTo(api, 'POST /api/chat');
     expect(JSON.parse(String(request?.body))).toEqual({

@@ -199,9 +199,11 @@ pnpm admin:promote you@example.com
 
 ## Phase 5: Context + token management
 
-- **Learn:** token budgets, deterministic trimming, summarization, cache invalidation.
-- **Where:** `apps/api/src/ai/token.service.ts`, `apps/api/src/services/context.service.ts`.
-- **Design:** [context management](../architecture/context-management.md).
+- **Learn:** token budgets, deterministic trimming, summarization, estimate calibration, background work that must not block a stream, compare-and-set writes.
+- **Where:** `apps/api/src/ai/context-builder.ts` (pure budget logic), `apps/api/src/ai/token.service.ts`, `apps/api/src/ai/summarizer.ts`, `apps/api/src/services/context.service.ts`.
+- **Read first:** the "budget invariant" test in `apps/api/tests/unit/context-budget.test.ts`: it generates 5,000 conversations and checks that no built context exceeds its budget. Then `ContextService.plan` and `#summarize`.
+- **See it work:** with real keys, send a long conversation to a small model; the chat footer changes from "Context … (n%)" to "earlier messages summarized". `apps/api/tests/unit/context.service.test.ts` shows the same with a scripted provider.
+- **Design:** [context management](../architecture/context-management.md), [ADR-012](../decisions/ADR-012-context-management.md).
 
 ## Phase 6: Fallback + routing
 

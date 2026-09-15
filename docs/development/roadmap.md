@@ -13,14 +13,14 @@ Board states (blueprint §24): BACKLOG → READY → IN PROGRESS → CODE COMPLE
 | P2    | Single-model chat           | **CODE COMPLETE** (live suite, real provider calls and E2E pending)         | `packages/ai-providers`, `apps/api/src/modules/chat`, `src/providers`, `src/ai`, `apps/web/src/features/chat`, `prisma/migrations` | See [phase-2.md](phase-2.md)                                                |
 | P3    | Model registry + selector   | **CODE COMPLETE** (migration, live suite and admin QA pending)              | `apps/api/src/modules/models`, `src/providers/model-registry.service.ts`, `apps/web/src/pages/models-page.tsx`, `prisma/`          | See [phase-3.md](phase-3.md)                                                |
 | P4    | Comparison engine           | **CODE COMPLETE** (migration, live suite, real comparison and E2E pending)  | `apps/api/src/modules/comparison`, `src/repositories/comparison.repository.ts`, `apps/web/src/features/compare`, `prisma/`         | `pnpm verify` PASS (250 unit, 51 integration). See [phase-4.md](phase-4.md) |
-| P5    | Context + token management  | BACKLOG                                                                     |                                                                                                                                    |                                                                             |
-| P6    | Fallback + routing          | BACKLOG                                                                     |                                                                                                                                    |                                                                             |
+| P5    | Context + token management  | **CODE COMPLETE** (migration, live suite and real summary pending)          | `apps/api/src/ai/{context-builder,token.service,summarizer,usage}.ts`, `apps/api/src/services/context.service.ts`, `prisma/`       | `pnpm verify` PASS (280 unit, 53 integration). See [phase-5.md](phase-5.md) |
+| P6    | Fallback + routing          | IN PROGRESS                                                                 |                                                                                                                                    |                                                                             |
 | P7    | History + analytics         | BACKLOG                                                                     |                                                                                                                                    |                                                                             |
 | P8    | Vision + image              | BACKLOG                                                                     |                                                                                                                                    |                                                                             |
 | P9    | Video + audio               | BACKLOG                                                                     |                                                                                                                                    |                                                                             |
 | P10   | Hardening + deployment      | BACKLOG                                                                     |                                                                                                                                    |                                                                             |
 
-Phases 1–4 were built before the Phase 0 gate closed, by explicit decision on 2026-09-13. None of P0–P4 can be marked DONE until real Supabase, Upstash and at least one provider key are configured and the live suites pass. As of 2026-09-15 the local `.env` database and Redis URLs are placeholders (`127.0.0.1:1`), so the API cannot start locally.
+Phases 1–5 were built before the Phase 0 gate closed, by explicit decision on 2026-09-13. None of P0–P5 can be marked DONE until real Supabase, Upstash and at least one provider key are configured and the live suites pass. As of 2026-09-15 the local `.env` database and Redis URLs are placeholders (`127.0.0.1:1`), so the API cannot start locally.
 
 ## Task IDs
 
@@ -53,5 +53,10 @@ The blueprint defines MODEL-001 to MODEL-014. IDs from MODEL-015 on are added he
 | MODEL-014 | Model comparison (API, persistence, stream)    | P4    | CODE COMPLETE (no real call)     |
 | MODEL-024 | Configurable comparison model limits           | P4    | CODE COMPLETE                    |
 | MODEL-025 | Web `/compare` page                            | P4    | CODE COMPLETE                    |
+| MODEL-026 | Context budget invariant + summary in context  | P5    | CODE COMPLETE                    |
+| MODEL-027 | Calibrated per-model token estimates           | P5    | CODE COMPLETE                    |
+| MODEL-028 | Conversation summaries (hook, background, CAS) | P5    | CODE COMPLETE (no real call)     |
+| MODEL-029 | Usage normalization                            | P5    | CODE COMPLETE                    |
+| MODEL-030 | Context info in the stream and chat UI         | P5    | CODE COMPLETE                    |
 
 MODEL-008 is listed in the blueprint between Phase 1 tasks, but the provider interface skeleton is Phase 0 scope (§16), so it was delivered there.

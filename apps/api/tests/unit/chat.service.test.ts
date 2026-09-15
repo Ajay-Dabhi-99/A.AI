@@ -6,7 +6,10 @@ import {
   SYSTEM_PROMPT,
   type ChatCaller,
 } from '../../src/modules/chat/chat.service.js';
+import { ModelSummarizer } from '../../src/ai/summarizer.js';
+import { TokenService } from '../../src/ai/token.service.js';
 import { GuestConversationStore } from '../../src/modules/chat/guest-conversation.store.js';
+import { ContextService } from '../../src/services/context.service.js';
 import { GuestService } from '../../src/modules/guest/guest.service.js';
 import { createAdapterRegistry, registryDefaults } from '../../src/providers/model-directory.js';
 import { ModelRegistryService } from '../../src/providers/model-registry.service.js';
@@ -56,7 +59,24 @@ function setup(options: { contextWindow?: number } = {}) {
     clock,
     logger,
   });
-  const chat = new ChatService({ models, conversations, guestChats, quota, clock, logger });
+  const context = new ContextService({
+    store,
+    conversations,
+    tokens: new TokenService(store),
+    summarizer: new ModelSummarizer(),
+    summariesEnabled: true,
+    clock,
+    logger,
+  });
+  const chat = new ChatService({
+    models,
+    conversations,
+    guestChats,
+    context,
+    quota,
+    clock,
+    logger,
+  });
   return {
     store,
     clock,

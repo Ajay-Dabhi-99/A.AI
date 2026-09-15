@@ -88,6 +88,11 @@ export const serverEnvSchema = z
     /** Models one comparison may run at once (blueprint §13). 2 to 4: the API's hard range. */
     GUEST_COMPARE_MAX_MODELS: z.coerce.number().int().min(2).max(4).default(2),
     USER_COMPARE_MAX_MODELS: z.coerce.number().int().min(2).max(4).default(4),
+    /** Summarize older messages with the chat model when a conversation outgrows its context (ADR-012). */
+    CONTEXT_SUMMARY_ENABLED: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
 
     /** Sender shown in emails, e.g. `A.ai <no-reply@your-domain.com>`. */
     EMAIL_FROM: z

@@ -1,22 +1,29 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type {
-  AIMessage,
   AIModel,
   AIUsage,
+  ChatContextInfo,
   ChatMessage,
   ChatStreamEvent,
   RunError,
 } from '@a-ai/shared-types';
 import type { ChatRequest } from '@a-ai/validation';
 import type { FastifyBaseLogger } from 'fastify';
-import { buildContext, estimateTokens } from '../../ai/context-builder.js';
+import { estimateTokens } from '../../ai/context-builder.js';
 import { estimateCostUsd } from '../../ai/cost.js';
 import { toRunError } from '../../ai/run-error.js';
+import { normalizeUsage } from '../../ai/usage.js';
 import type { ModelRegistryService } from '../../providers/model-registry.service.js';
 import type {
   ConversationRepository,
   RunStatusValue,
 } from '../../repositories/conversation.repository.js';
+import type {
+  ContextScope,
+  ContextService,
+  HistoryMessage,
+  SummaryState,
+} from '../../services/context.service.js';
 import type { QuotaService, QuotaSubject } from '../../services/quota.service.js';
 import type { Clock } from '../../shared/clock.js';
 import { AppError } from '../../shared/errors/app-error.js';
@@ -39,6 +46,7 @@ export type PreparedChat = {
   runId: string;
   conversationId: string | null;
   model: AIModel;
+  context: ChatContextInfo;
   /** Streams the answer through `emit` and records the outcome. Never throws. */
   execute(signal: AbortSignal, emit: EmitEvent): Promise<void>;
 };
@@ -47,6 +55,7 @@ export type ChatServiceDeps = {
   models: ModelRegistryService;
   conversations: ConversationRepository;
   guestChats: GuestConversationStore;
+  context: ContextService;
   quota: QuotaService;
   clock: Clock;
   logger: FastifyBaseLogger;
@@ -66,26 +75,39 @@ export class ChatService {
   }
 
   async prepare(caller: ChatCaller, input: ChatRequest): Promise<PreparedChat> {
-    const { models, conversations, guestChats, quota, clock } = this.#deps;
+    const { models, conversations, guestChats, context, quota, clock } = this.#deps;
     const { provider, model } = await models.resolve(input.provider, input.model);
 
     let conversationId: string | null = null;
-    let history: AIMessage[] = [];
+    let history: HistoryMessage[] = [];
     let guestMessages: ChatMessage[] = [];
+    let summary: SummaryState = null;
 
     if (caller.kind === 'user') {
       if (input.conversationId) {
         const conversation = await conversations.findForUser(input.conversationId, caller.userId);
         if (!conversation) throw new AppError('NOT_FOUND', 'This conversation does not exist.');
         conversationId = conversation.id;
+        if (conversation.summary !== null && conversation.summaryUpToMessageId !== null) {
+          summary = {
+            summary: conversation.summary,
+            upToMessageId: conversation.summaryUpToMessageId,
+          };
+        }
         history = (await conversations.listMessages(conversation.id)).map((message) => ({
+          id: message.id,
           role: message.role === 'USER' ? 'user' : 'assistant',
           content: message.content,
         }));
       }
     } else {
       guestMessages = await guestChats.get(caller.guest.id);
-      history = guestMessages.map((message) => ({ role: message.role, content: message.content }));
+      summary = await context.guestSummary(caller.guest.id);
+      history = guestMessages.map((message) => ({
+        id: message.id,
+        role: message.role,
+        content: message.content,
+      }));
     }
 
     if (input.retry) {
@@ -98,12 +120,21 @@ export class ChatService {
 
     const maxOutputTokens = Math.min(model.maxOutputTokens, CHAT_MAX_OUTPUT_TOKENS);
     // Before quota: a request that cannot fit must not use up allowance.
-    const context = buildContext({
+    const plan = await context.plan({
+      model,
       systemPrompt: SYSTEM_PROMPT,
-      history,
-      contextWindow: model.contextWindow,
       maxOutputTokens,
+      history,
+      summary,
+      historyMayBeTrimmed: caller.kind === 'guest',
     });
+    const contextInfo: ChatContextInfo = {
+      inputTokens: plan.context.estimatedInputTokens,
+      budgetTokens: plan.context.budgetTokens,
+      contextWindow: model.contextWindow,
+      droppedMessages: plan.context.droppedMessages,
+      summaryIncluded: plan.context.summaryIncluded,
+    };
 
     const subject: QuotaSubject =
       caller.kind === 'user'
@@ -151,6 +182,11 @@ export class ChatService {
       throw error;
     }
 
+    const scope: ContextScope =
+      caller.kind === 'user'
+        ? { kind: 'conversation', conversationId: conversationId as string }
+        : { kind: 'guest', guest: caller.guest };
+
     const execute = async (signal: AbortSignal, emit: EmitEvent): Promise<void> => {
       const startedAt = performance.now();
       const elapsed = () => Math.round(performance.now() - startedAt);
@@ -160,7 +196,13 @@ export class ChatService {
 
       emit({
         event: 'message.start',
-        data: { runId, provider: model.provider, model: model.id, conversationId },
+        data: {
+          runId,
+          provider: model.provider,
+          model: model.id,
+          conversationId,
+          context: contextInfo,
+        },
       });
 
       const record = async (
@@ -169,11 +211,10 @@ export class ChatService {
       ) => {
         const keepText = (status === 'COMPLETED' || status === 'CANCELLED') && text.length > 0;
         const latencyMs = elapsed();
-        const finalUsage = usage ?? {
-          source: 'estimated' as const,
-          inputTokens: context.estimatedInputTokens,
-          outputTokens: estimateTokens(text),
-        };
+        const finalUsage = normalizeUsage(usage, {
+          inputTokens: plan.context.estimatedInputTokens,
+          outputTokens: estimateTokens(text, plan.charsPerToken),
+        });
 
         if (caller.kind === 'user') {
           const { message } = await conversations.completeRun(runId, {
@@ -189,7 +230,7 @@ export class ChatService {
             estimatedCostUsd: estimateCostUsd(model, finalUsage),
             completedAt: clock.now(),
           });
-          return { messageId: message?.id ?? null, latencyMs };
+          return { messageId: message?.id ?? null, latencyMs, usage: finalUsage };
         }
 
         if (keepText) {
@@ -210,13 +251,13 @@ export class ChatService {
           ];
           await guestChats.save(caller.guest, guestMessages);
         }
-        return { messageId: null, latencyMs };
+        return { messageId: null, latencyMs, usage: finalUsage };
       };
 
       try {
         for await (const chunk of provider.stream({
           model: model.id,
-          messages: context.messages,
+          messages: plan.context.messages,
           maxOutputTokens,
           signal,
         })) {
@@ -228,22 +269,25 @@ export class ChatService {
             usage = chunk.usage;
           }
         }
-        if (usage) emit({ event: 'usage', data: { runId, usage } });
-        const { messageId, latencyMs } = await record('COMPLETED', null);
-        if (!usage) {
-          emit({
-            event: 'usage',
-            data: {
-              runId,
-              usage: {
-                source: 'estimated',
-                inputTokens: context.estimatedInputTokens,
-                outputTokens: estimateTokens(text),
-              },
-            },
-          });
-        }
-        emit({ event: 'message.done', data: { runId, status: 'completed', messageId, latencyMs } });
+        const outcome = await record('COMPLETED', null);
+        emit({ event: 'usage', data: { runId, usage: outcome.usage } });
+        emit({
+          event: 'message.done',
+          data: {
+            runId,
+            status: 'completed',
+            messageId: outcome.messageId,
+            latencyMs: outcome.latencyMs,
+          },
+        });
+        context.afterCompletedRun({
+          scope,
+          provider,
+          model,
+          plan,
+          providerInputTokens:
+            outcome.usage.source === 'provider' ? (outcome.usage.inputTokens ?? null) : null,
+        });
       } catch (error) {
         if (signal.aborted) {
           const outcome = await record('CANCELLED', null).catch((recordError: unknown) => {
@@ -251,7 +295,15 @@ export class ChatService {
             return { messageId: null, latencyMs: elapsed() };
           });
           if (!text) await quota.refund(subject, ipHash ? { ipHash } : {}).catch(() => undefined);
-          emit({ event: 'message.done', data: { runId, status: 'cancelled', ...outcome } });
+          emit({
+            event: 'message.done',
+            data: {
+              runId,
+              status: 'cancelled',
+              messageId: outcome.messageId,
+              latencyMs: outcome.latencyMs,
+            },
+          });
           return;
         }
 
@@ -268,7 +320,15 @@ export class ChatService {
       }
     };
 
-    return { runId, conversationId, model, execute };
+    return { runId, conversationId, model, context: contextInfo, execute };
+  }
+
+  /** "New chat" for a guest: removes the temporary chat and its summary. */
+  async clearGuest(guestId: string): Promise<void> {
+    await Promise.all([
+      this.#deps.guestChats.clear(guestId),
+      this.#deps.context.clearGuest(guestId),
+    ]);
   }
 
   /** Moves a guest's temporary chat into the user's saved conversations. Idempotent. */
@@ -300,7 +360,8 @@ export class ChatService {
           : {}),
       })),
     });
-    await guestChats.clear(guest.id);
+    // The guest summary's coverage points at temporary message ids, so it is not carried over.
+    await this.clearGuest(guest.id);
     return conversation.userId === userId ? conversation.id : null;
   }
 

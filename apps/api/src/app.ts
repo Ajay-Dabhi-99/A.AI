@@ -70,6 +70,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
   registerOriginCheck(app, env);
   registerApiRateLimit(app);
+  // Background summaries are bounded by their own timeout; let them finish before shutdown.
+  app.addHook('onClose', async () => {
+    await app.services.context.idle();
+  });
 
   await app.register(healthRoutes, { env });
   await app.register(authRoutes, { prefix: '/api/auth' });

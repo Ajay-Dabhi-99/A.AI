@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatStreamEvent, RunError } from '@a-ai/shared-types';
+import type { ChatContextInfo, ChatMessage, ChatStreamEvent, RunError } from '@a-ai/shared-types';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { ME_QUERY_KEY } from '@/hooks/use-me';
@@ -30,6 +30,8 @@ export function useChatSession(options: {
   const [messages, setMessages] = useState<UiMessage[]>(options.initialMessages);
   const [streaming, setStreaming] = useState(false);
   const [failure, setFailure] = useState<ChatFailure | null>(null);
+  /** How the most recent request's context was built (Phase 5). */
+  const [context, setContext] = useState<ChatContextInfo | null>(null);
   const conversationRef = useRef(options.conversationId);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -66,6 +68,7 @@ export function useChatSession(options: {
     const onEvent = (event: ChatStreamEvent) => {
       if (event.event === 'message.start') {
         accepted = true;
+        setContext(event.data.context);
         const { conversationId } = event.data;
         if (conversationId && conversationId !== conversationRef.current) {
           conversationRef.current = conversationId;
@@ -153,6 +156,7 @@ export function useChatSession(options: {
     messages,
     streaming,
     failure,
+    context,
     /** Resolves false when the message was rejected before the answer started (the draft should be restored). */
     send: (model: ModelRef, text: string) => run(model, text),
     retry: (model: ModelRef) => run(model, null),

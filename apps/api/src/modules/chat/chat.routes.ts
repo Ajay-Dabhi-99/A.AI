@@ -84,7 +84,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
 
   app.delete('/api/guest/conversation', async (request, reply) => {
     const identity = await resolveIdentity(request, reply, { createGuest: false });
-    if (identity.kind === 'guest') await guestChats.clear(identity.guest.id);
+    if (identity.kind === 'guest') await chat.clearGuest(identity.guest.id);
     return reply.status(204).send();
   });
 

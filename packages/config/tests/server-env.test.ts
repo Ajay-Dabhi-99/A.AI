@@ -39,6 +39,7 @@ describe('parseServerEnv', () => {
       USER_DAILY_MESSAGE_LIMIT: 200,
       GUEST_COMPARE_MAX_MODELS: 2,
       USER_COMPARE_MAX_MODELS: 4,
+      CONTEXT_SUMMARY_ENABLED: true,
       EMAIL_FROM: 'A.ai <onboarding@resend.dev>',
     });
     expect(env.DIRECT_URL).toBeUndefined();
@@ -65,6 +66,12 @@ describe('parseServerEnv', () => {
     );
     expect(issuesFor({ ...valid, USER_COMPARE_MAX_MODELS: '5' })[0]).toMatch(
       /^USER_COMPARE_MAX_MODELS/,
+    );
+    expect(
+      parseServerEnv({ ...valid, CONTEXT_SUMMARY_ENABLED: 'false' }).CONTEXT_SUMMARY_ENABLED,
+    ).toBe(false);
+    expect(issuesFor({ ...valid, CONTEXT_SUMMARY_ENABLED: 'yes' })[0]).toMatch(
+      /^CONTEXT_SUMMARY_ENABLED/,
     );
   });
 

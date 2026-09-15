@@ -79,6 +79,11 @@ model Conversation {
   userId            String     @db.Uuid
   title             String     @db.VarChar(120)
   guestMigrationKey String?    @unique @db.VarChar(64)
+  /// Running summary of the messages up to summaryUpToMessageId (Phase 5, ADR-012). Null until
+  /// the conversation outgrows the model's context window.
+  summary              String?   @db.Text
+  summaryUpToMessageId String?   @db.Uuid
+  summaryUpdatedAt     DateTime? @db.Timestamptz(3)
   createdAt         DateTime   @default(now()) @db.Timestamptz(3)
   updatedAt         DateTime   @updatedAt @db.Timestamptz(3)
   user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)

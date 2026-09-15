@@ -57,7 +57,7 @@ Headers: `content-type: text/event-stream`, `cache-control: no-cache, no-transfo
 
 ```
 event: message.start
-data: {"runId":"…","provider":"groq","model":"openai/gpt-oss-20b","conversationId":"…or null for guests"}
+data: {"runId":"…","provider":"groq","model":"openai/gpt-oss-20b","conversationId":"…or null for guests","context":{"inputTokens":1310,"budgetTokens":120622,"contextWindow":131072,"droppedMessages":0,"summaryIncluded":false}}
 
 event: message.delta
 data: {"runId":"…","text":"Retrieval-augmented"}
@@ -68,6 +68,18 @@ data: {"runId":"…","usage":{"inputTokens":42,"outputTokens":180,"totalTokens":
 event: message.done
 data: {"runId":"…","status":"completed","messageId":"…or null","latencyMs":2140}
 ```
+
+`message.start.context` describes how the request's context was built, estimated before the call ([context management](../architecture/context-management.md)):
+
+| Field             | Meaning                                                      |
+| ----------------- | ------------------------------------------------------------ |
+| `inputTokens`     | Estimated prompt tokens sent; never more than `budgetTokens` |
+| `budgetTokens`    | `floor(contextWindow × 0.95)` minus the reply reservation    |
+| `contextWindow`   | The model's window from the registry                         |
+| `droppedMessages` | Earlier messages left out that no summary covers             |
+| `summaryIncluded` | A summary of earlier messages was sent in the system message |
+
+When messages were left out, the same model updates the conversation summary after `message.done` (not charged to the daily allowance; disabled with `CONTEXT_SUMMARY_ENABLED=false`).
 
 A failure after the stream opened ends with an `error` event instead of `message.done`:
 

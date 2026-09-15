@@ -19,6 +19,8 @@ export interface KeyValueStore {
   decrement(key: string): Promise<number>;
   getCount(key: string): Promise<number>;
   setJson(key: string, value: unknown, ttlMs: number): Promise<void>;
+  /** Atomically stores the value only if the key does not exist. True when it was stored (a lock was taken). */
+  setJsonIfAbsent(key: string, value: unknown, ttlMs: number): Promise<boolean>;
   getJson<T>(key: string): Promise<T | null>;
   delete(key: string): Promise<void>;
 }
@@ -64,6 +66,11 @@ export function createRedisStore(redis: Redis, prefix: string = KEY_PREFIX): Key
 
     async setJson(name, value, ttlMs) {
       await redis.set(key(name), JSON.stringify(value), 'PX', ttlMs);
+    },
+
+    async setJsonIfAbsent(name, value, ttlMs) {
+      const result = await redis.set(key(name), JSON.stringify(value), 'PX', ttlMs, 'NX');
+      return result === 'OK';
     },
 
     async getJson<T>(name: string): Promise<T | null> {

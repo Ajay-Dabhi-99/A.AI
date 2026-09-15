@@ -2,6 +2,8 @@ import type { ProviderRegistry } from '@a-ai/ai-core';
 import { appUrl, type ServerEnv } from '@a-ai/config/server';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Redis } from 'ioredis';
+import { ModelSummarizer, type ConversationSummarizer } from '../ai/summarizer.js';
+import { TokenService } from '../ai/token.service.js';
 import type { PrismaClient } from '../generated/prisma/client.js';
 import { AuthService } from '../modules/auth/auth.service.js';
 import { SessionService } from '../modules/auth/session.service.js';
@@ -38,6 +40,7 @@ import {
 import type { Repositories, TransactionRunner } from '../repositories/types.js';
 import { systemClock, type Clock } from '../shared/clock.js';
 import { argon2PasswordHasher, type PasswordHasher } from '../shared/security/password.js';
+import { ContextService } from './context.service.js';
 import { createEmailSender, type EmailSender } from './email/email-sender.js';
 import { createRedisStore, type KeyValueStore } from './kv-store.js';
 import { QuotaService } from './quota.service.js';
@@ -60,6 +63,10 @@ export type AppServices = {
   adapters: ProviderRegistry;
   /** The model registry: which models exist and whether each is usable. */
   models: ModelRegistryService;
+  /** Per-model token estimation calibrated from provider counts. */
+  tokens: TokenService;
+  /** Context budgets, summaries and calibration (Phase 5). */
+  context: ContextService;
   chat: ChatService;
   comparison: ComparisonService;
   email: EmailSender;
@@ -86,6 +93,8 @@ export type ServiceOverrides = {
   rateLimits?: Partial<RateLimitRules>;
   /** Shorter per-run comparison timeout, so tests need not wait two minutes. */
   comparisonRunTimeoutMs?: number;
+  /** Replaces the default same-model summarizer (the summarization hook). */
+  summarizer?: ConversationSummarizer;
 };
 
 export function createServices(input: {
@@ -129,6 +138,17 @@ export function createServices(input: {
     logger,
   });
 
+  const tokens = new TokenService(store);
+  const context = new ContextService({
+    store,
+    conversations,
+    tokens,
+    summarizer: overrides.summarizer ?? new ModelSummarizer(),
+    summariesEnabled: env.CONTEXT_SUMMARY_ENABLED,
+    clock,
+    logger,
+  });
+
   const sessions = new SessionService({
     sessions: repositories.sessions,
     secret: env.JWT_SECRET,
@@ -160,12 +180,15 @@ export function createServices(input: {
     }),
     adapters,
     models,
-    chat: new ChatService({ models, conversations, guestChats, quota, clock, logger }),
+    tokens,
+    context,
+    chat: new ChatService({ models, conversations, guestChats, context, quota, clock, logger }),
     comparison: new ComparisonService({
       models,
       comparisons,
       guestComparisons: new GuestComparisonStore(store, clock),
       quota,
+      tokens,
       limits: { guest: env.GUEST_COMPARE_MAX_MODELS, user: env.USER_COMPARE_MAX_MODELS },
       clock,
       logger,

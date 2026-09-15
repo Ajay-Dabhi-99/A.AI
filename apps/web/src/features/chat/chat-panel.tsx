@@ -1,4 +1,10 @@
-import type { AIModel, ChatMessage, ProviderInfo, QuotaSummary } from '@a-ai/shared-types';
+import type {
+  AIModel,
+  ChatContextInfo,
+  ChatMessage,
+  ProviderInfo,
+  QuotaSummary,
+} from '@a-ai/shared-types';
 import { RotateCcw } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router';
@@ -14,6 +20,26 @@ const SUGGESTIONS = [
   'Write a SQL query that finds duplicate email addresses.',
   'Give me three names for a neighbourhood coffee shop.',
 ];
+
+function formatTokens(tokens: number): string {
+  if (tokens >= 10_000) return `${Math.round(tokens / 1_000)}k`;
+  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}k`;
+  return String(tokens);
+}
+
+/** How full the model's context was for the last request (an estimate made before the call). */
+function contextSummary(context: ChatContextInfo): string {
+  const percent =
+    context.budgetTokens > 0
+      ? Math.min(100, Math.round((context.inputTokens / context.budgetTokens) * 100))
+      : 100;
+  const note = context.summaryIncluded
+    ? ' · earlier messages summarized'
+    : context.droppedMessages > 0
+      ? ` · ${context.droppedMessages} older messages left out`
+      : '';
+  return `Context ${formatTokens(context.inputTokens)} of ${formatTokens(context.budgetTokens)} tokens (${percent}%)${note}`;
+}
 
 export function ChatPanel({
   isGuest,
@@ -140,9 +166,15 @@ export function ChatPanel({
           onSend={send}
           onStop={session.stop}
           footer={
-            quota ? (
+            quota || session.context ? (
               <span>
-                {quota.remaining} of {quota.limit} messages left today
+                {quota && `${quota.remaining} of ${quota.limit} messages left today`}
+                {session.context && (
+                  <>
+                    {quota && ' · '}
+                    {contextSummary(session.context)}
+                  </>
+                )}
                 {isGuest && (
                   <>
                     {' · '}
