@@ -1,4 +1,4 @@
-import type { AIModel, ChatMessage, QuotaSummary } from '@a-ai/shared-types';
+import type { AIModel, ChatMessage, ProviderInfo, QuotaSummary } from '@a-ai/shared-types';
 import { RotateCcw } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router';
@@ -20,6 +20,7 @@ export function ChatPanel({
   conversationId,
   initialMessages,
   models,
+  providers,
   defaultModel,
   quota,
   onConversationStarted,
@@ -28,6 +29,7 @@ export function ChatPanel({
   conversationId: string | null;
   initialMessages: ChatMessage[];
   models: AIModel[];
+  providers: ProviderInfo[];
   defaultModel: { provider: string; id: string } | null;
   quota: QuotaSummary | undefined;
   onConversationStarted?: (conversationId: string) => void;
@@ -130,6 +132,7 @@ export function ChatPanel({
 
         <Composer
           models={models}
+          providers={providers}
           model={model}
           onSelectModel={(next) => select({ provider: next.provider, id: next.id })}
           streaming={session.streaming}

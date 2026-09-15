@@ -3,7 +3,6 @@ import type {
   ConversationListResponse,
   GuestConversationResponse,
   GuestMigrationResponse,
-  ModelsResponse,
 } from '@a-ai/shared-types';
 import { chatRequestSchema } from '@a-ai/validation';
 import type { FastifyInstance } from 'fastify';
@@ -11,8 +10,8 @@ import { z } from 'zod';
 import { hashedIp, requireUser, resolveIdentity } from '../../plugins/auth.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { clearCookie } from '../../shared/http/cookies.js';
+import { openEventStream } from '../../shared/http/event-stream.js';
 import type { ChatCaller } from './chat.service.js';
-import { openEventStream } from './event-stream.js';
 import { toChatMessage, toConversationSummary } from './mappers.js';
 
 const CONVERSATION_LIST_LIMIT = 50;
@@ -20,17 +19,7 @@ const conversationParamsSchema = z.object({ id: z.uuid() });
 
 export async function chatRoutes(app: FastifyInstance): Promise<void> {
   const { env, cookieNames } = app;
-  const { chat, directory, conversations, guestChats, guests } = app.services;
-
-  /** Models this instance can serve (only providers with configured keys). */
-  app.get('/api/models', async (_request, reply): Promise<ModelsResponse> => {
-    reply.header('cache-control', 'private, max-age=60');
-    const fallback = directory.defaultModel();
-    return {
-      models: directory.list(),
-      defaultModel: fallback ? { provider: fallback.provider, id: fallback.id } : null,
-    };
-  });
+  const { chat, conversations, guestChats, guests } = app.services;
 
   /** Streams one answer as Server-Sent Events (docs/api/chat.md). */
   app.post('/api/chat', async (request, reply) => {

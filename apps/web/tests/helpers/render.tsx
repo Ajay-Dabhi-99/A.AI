@@ -59,17 +59,20 @@ export const testUser: AuthUser = {
   id: 'user-1',
   email: 'person@example.com',
   emailVerified: true,
+  role: 'user',
   createdAt: '2026-09-01T12:00:00.000Z',
 };
 
 export const guestMe: MeResponse = {
   identity: { kind: 'guest', expiresAt: '2026-09-14T10:00:00.000Z' },
   quota: { limit: 20, used: 0, remaining: 20, resetsAt: '2026-09-14T00:00:00.000Z' },
+  limits: { compareMaxModels: 2 },
 };
 
 export const userMe: MeResponse = {
   identity: { kind: 'user', user: testUser },
   quota: { limit: 200, used: 3, remaining: 197, resetsAt: '2026-09-14T00:00:00.000Z' },
+  limits: { compareMaxModels: 4 },
 };
 
 type Handler = (init: RequestInit | undefined) => Response | Promise<Response>;

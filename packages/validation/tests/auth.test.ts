@@ -63,6 +63,7 @@ describe('link token schemas', () => {
 
 describe('meResponseSchema', () => {
   const quota = { limit: 20, used: 3, remaining: 17, resetsAt: '2026-09-14T00:00:00.000Z' };
+  const limits = { compareMaxModels: 2 };
 
   it('accepts user and guest identities', () => {
     expect(
@@ -73,16 +74,19 @@ describe('meResponseSchema', () => {
             id: 'u1',
             email: 'a@b.co',
             emailVerified: true,
+            role: 'user',
             createdAt: '2026-09-13T00:00:00.000Z',
           },
         },
         quota,
+        limits,
       }).success,
     ).toBe(true);
     expect(
       meResponseSchema.safeParse({
         identity: { kind: 'guest', expiresAt: '2026-09-14T00:00:00.000Z' },
         quota,
+        limits,
       }).success,
     ).toBe(true);
   });

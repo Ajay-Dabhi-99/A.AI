@@ -76,6 +76,7 @@ describe('GET /api/models', () => {
     expect(modelsResponseSchema.parse(response.json())).toEqual({
       models: [ctx.model],
       defaultModel: { provider: 'scripted', id: 'fast-1' },
+      providers: [{ id: 'scripted', name: 'scripted', configured: true }],
     });
   });
 });

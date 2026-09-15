@@ -7,7 +7,9 @@ import type { PrismaClient } from '../../src/generated/prisma/client.js';
 import type { ServiceOverrides } from '../../src/services/container.js';
 import type { AIModel } from '@a-ai/shared-types';
 import { CapturingEmailSender, TestClock } from './fakes.js';
+import { createMemoryComparisons, type MemoryComparisons } from './memory-comparisons.js';
 import { createMemoryConversations, type MemoryConversations } from './memory-conversations.js';
+import { createMemoryModelRegistry } from './memory-model-registry.js';
 import { ScriptedProvider, testModel } from './scripted-provider.js';
 import { createMemoryRepositories, type MemoryRepositories } from './memory-repositories.js';
 
@@ -69,6 +71,8 @@ export async function buildTestApp(
       repositories,
       transaction: repositories.transaction,
       conversations: createMemoryConversations(),
+      comparisons: createMemoryComparisons(),
+      modelRegistry: createMemoryModelRegistry(),
       email: new CapturingEmailSender(),
       ...options.services,
     },
@@ -98,6 +102,8 @@ export async function buildAuthTestApp(
       repositories,
       transaction: repositories.transaction,
       conversations: createMemoryConversations(),
+      comparisons: createMemoryComparisons(),
+      modelRegistry: createMemoryModelRegistry(),
       email: emails,
       clock,
       ...options.services,
@@ -125,6 +131,36 @@ export async function buildChatTestApp(
     services: { providers: [{ provider, models: [model] }], conversations, ...options.services },
   });
   return { ...context, provider, model, conversations };
+}
+
+export type CompareTestContext = AuthTestContext & {
+  alpha: ScriptedProvider;
+  beta: ScriptedProvider;
+  gamma: ScriptedProvider;
+  comparisons: MemoryComparisons;
+};
+
+/** An auth test app with three scripted providers (models a-1, b-1, g-1) for comparisons. */
+export async function buildCompareTestApp(
+  options: { env?: ServerEnv; services?: ServiceOverrides } = {},
+): Promise<CompareTestContext> {
+  const alpha = new ScriptedProvider('alpha');
+  const beta = new ScriptedProvider('beta');
+  const gamma = new ScriptedProvider('gamma');
+  const comparisons = createMemoryComparisons();
+  const context = await buildAuthTestApp({
+    ...(options.env ? { env: options.env } : {}),
+    services: {
+      providers: [
+        { provider: alpha, models: [testModel('alpha', 'a-1')] },
+        { provider: beta, models: [testModel('beta', 'b-1')] },
+        { provider: gamma, models: [testModel('gamma', 'g-1')] },
+      ],
+      comparisons,
+      ...options.services,
+    },
+  });
+  return { ...context, alpha, beta, gamma, comparisons };
 }
 
 export function cookieValue(response: LightMyRequestResponse, name: string): string | undefined {

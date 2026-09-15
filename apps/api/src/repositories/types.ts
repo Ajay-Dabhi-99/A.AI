@@ -3,10 +3,13 @@
  * implementation talks to Supabase, and tests use an in-memory implementation.
  */
 
+export type UserRoleValue = 'USER' | 'ADMIN';
+
 export type UserRecord = {
   id: string;
   email: string;
   passwordHash: string;
+  role: UserRoleValue;
   emailVerifiedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -50,6 +53,8 @@ export interface UserRepository {
   /** @throws DuplicateEmailError */
   create(data: { email: string; passwordHash: string }): Promise<UserRecord>;
   updatePasswordHash(id: string, passwordHash: string): Promise<void>;
+  /** Returns the updated user, or null when no account has this email. */
+  setRoleByEmail(email: string, role: UserRoleValue): Promise<UserRecord | null>;
   /** Sets emailVerifiedAt if it is not set yet; returns the current user either way. */
   markEmailVerified(id: string, at: Date): Promise<UserRecord>;
 }

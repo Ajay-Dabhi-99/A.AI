@@ -78,7 +78,7 @@ export async function toApiError(response: Response): Promise<ApiError> {
 }
 
 type RequestOptions<T> = {
-  method?: 'GET' | 'POST' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
   /** Validates the success body. Omit for 204 responses. */
   schema?: z.ZodType<T>;

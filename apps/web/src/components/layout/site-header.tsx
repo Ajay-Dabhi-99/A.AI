@@ -22,6 +22,12 @@ export function SiteHeader() {
           >
             Chat
           </Link>
+          <Link to="/compare" className="transition-colors hover:text-foreground">
+            Compare
+          </Link>
+          <Link to="/models" className="transition-colors hover:text-foreground">
+            Models
+          </Link>
           <Link to="/#features" className="transition-colors hover:text-foreground">
             Features
           </Link>

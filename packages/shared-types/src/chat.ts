@@ -1,4 +1,5 @@
 import type { AIModel, RunStatus } from './ai.js';
+import type { ProviderInfo } from './models.js';
 
 /** Chat and conversation contracts (Phase 2, docs/api/chat.md). */
 
@@ -47,8 +48,10 @@ export type GuestMigrationResponse = {
   conversationId: string | null;
 };
 
-/** GET /api/models: only models whose provider is configured. */
+/** GET /api/models: only models that can be used right now, in display order. */
 export type ModelsResponse = {
   models: AIModel[];
   defaultModel: { provider: string; id: string } | null;
+  /** Names for every provider in the registry; clients must not hard-code them. */
+  providers: ProviderInfo[];
 };

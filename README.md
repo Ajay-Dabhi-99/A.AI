@@ -59,6 +59,8 @@ Ports 4000/5180 avoid clashing with other local projects on 3000/5000/5173.
 | `pnpm check:env`        | Validates `.env` without printing any values                                 |
 | `pnpm db:migrate`       | Create and apply a Prisma migration (development)                            |
 | `pnpm db:deploy`        | Apply pending migrations (CI / production)                                   |
+| `pnpm db:seed`          | Insert default models into the registry (never overwrites edits)             |
+| `pnpm admin:promote`    | `pnpm admin:promote <email> [--revoke]`: grant or remove the admin role      |
 
 ## Repository layout
 

@@ -26,6 +26,16 @@ const text = {
   supportsStreaming: true,
   supportsVision: false,
   supportsTools: false,
+  // Unknown until an admin enters them: free tiers have limits, paid plans have prices.
+  inputPricePerMillionUsd: null,
+  outputPricePerMillionUsd: null,
+} as const;
+
+/** OpenRouter ":free" variants cost nothing. */
+const free = {
+  availability: 'free',
+  inputPricePerMillionUsd: 0,
+  outputPricePerMillionUsd: 0,
 } as const;
 
 export const MODEL_CATALOG: Readonly<Record<ProviderKey, readonly AIModel[]>> = {
@@ -59,7 +69,7 @@ export const MODEL_CATALOG: Readonly<Record<ProviderKey, readonly AIModel[]>> = 
       name: 'Gemma 4 31B',
       contextWindow: 262_144,
       maxOutputTokens: 32_768,
-      availability: 'free',
+      ...free,
     },
     {
       ...text,
@@ -68,7 +78,7 @@ export const MODEL_CATALOG: Readonly<Record<ProviderKey, readonly AIModel[]>> = 
       name: 'Nemotron 3 Super 120B',
       contextWindow: 262_144,
       maxOutputTokens: 32_768,
-      availability: 'free',
+      ...free,
     },
   ],
   gemini: [

@@ -36,6 +36,7 @@ The master blueprint (`docs/blueprint/ModelArena_Master_Implementation_Blueprint
 ```
 pnpm verify          # format, lint, typecheck, unit, integration, build
 pnpm test:live       # real Supabase + Upstash; required when DB/Redis behavior changes
+pnpm admin:promote <email> [--revoke]   # the only way to grant admin (no API for it)
 ```
 
 ## Completion report (blueprint §22.3)

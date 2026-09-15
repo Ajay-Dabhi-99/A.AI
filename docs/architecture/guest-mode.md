@@ -22,6 +22,7 @@ Blueprint §2, §8, §13 and the v4 infrastructure decision; [ADR-002](../decisi
 | `quota:messages:guest:{guestId}:{yyyy-mm-dd}`   | message counter                | next UTC midnight + 1 h     |
 | `quota:messages:guest-ip:{ipHash}:{yyyy-mm-dd}` | message counter per IP         | next UTC midnight + 1 h     |
 | `quota:messages:user:{userId}:{yyyy-mm-dd}`     | message counter                | next UTC midnight + 1 h     |
+| `guest:comparison:{comparisonId}`               | `{ id, guestId, prompt }`      | the guest session's expiry  |
 | `rate:{rule}:{hashedSubject}`                   | fixed-window counter           | the rule's window           |
 
 Redis expiry is the only cleanup mechanism. Nothing about a guest is written to PostgreSQL.

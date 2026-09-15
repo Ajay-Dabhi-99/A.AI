@@ -1,11 +1,13 @@
-import type { ChatStreamEvent } from '@a-ai/shared-types';
 import type { FastifyReply } from 'fastify';
 
 /** Comment lines keep proxies and load balancers from closing an idle stream. */
 export const HEARTBEAT_INTERVAL_MS = 15_000;
 
-export type EventStream = {
-  send(event: ChatStreamEvent): void;
+/** Any named SSE event; chat and comparison each narrow it to their own event union. */
+export type StreamEvent = { event: string; data: unknown };
+
+export type EventStream<Event extends StreamEvent> = {
+  send(event: Event): void;
   close(): void;
 };
 
@@ -14,7 +16,9 @@ export type EventStream = {
  * (CORS, security headers, request id, cookies) are carried over, because a
  * hijacked reply skips Fastify's normal send pipeline.
  */
-export function openEventStream(reply: FastifyReply): EventStream {
+export function openEventStream<Event extends StreamEvent>(
+  reply: FastifyReply,
+): EventStream<Event> {
   const inherited = Object.fromEntries(
     Object.entries(reply.getHeaders()).filter(
       (entry): entry is [string, string | number | string[]] => entry[1] !== undefined,

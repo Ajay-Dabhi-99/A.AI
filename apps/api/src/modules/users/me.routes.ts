@@ -4,20 +4,23 @@ import { resolveIdentity } from '../../plugins/auth.js';
 import { toAuthUser } from '../auth/auth.service.js';
 
 export async function meRoutes(app: FastifyInstance): Promise<void> {
-  /** Current identity and daily quota. Issues a guest session to first-time visitors. */
+  /** Current identity, daily quota and limits. Issues a guest session to first-time visitors. */
   app.get('/api/me', async (request, reply): Promise<MeResponse> => {
     const identity = await resolveIdentity(request, reply, { createGuest: true });
+    const { quota, comparison } = app.services;
     reply.header('cache-control', 'no-store');
 
     if (identity.kind === 'user') {
       return {
         identity: { kind: 'user', user: toAuthUser(identity.user) },
-        quota: await app.services.quota.summary({ kind: 'user', id: identity.user.id }),
+        quota: await quota.summary({ kind: 'user', id: identity.user.id }),
+        limits: { compareMaxModels: comparison.maxModels('user') },
       };
     }
     return {
       identity: { kind: 'guest', expiresAt: identity.guest.expiresAt },
-      quota: await app.services.quota.summary({ kind: 'guest', id: identity.guest.id }),
+      quota: await quota.summary({ kind: 'guest', id: identity.guest.id }),
+      limits: { compareMaxModels: comparison.maxModels('guest') },
     };
   });
 }

@@ -37,6 +37,8 @@ describe('parseServerEnv', () => {
       GUEST_SESSION_TTL_MINUTES: 1440,
       GUEST_DAILY_MESSAGE_LIMIT: 20,
       USER_DAILY_MESSAGE_LIMIT: 200,
+      GUEST_COMPARE_MAX_MODELS: 2,
+      USER_COMPARE_MAX_MODELS: 4,
       EMAIL_FROM: 'A.ai <onboarding@resend.dev>',
     });
     expect(env.DIRECT_URL).toBeUndefined();
@@ -55,6 +57,15 @@ describe('parseServerEnv', () => {
       /^USER_DAILY_MESSAGE_LIMIT/,
     );
     expect(issuesFor({ ...valid, PORT: 'eighty' })[0]).toMatch(/^PORT/);
+    expect(parseServerEnv({ ...valid, USER_COMPARE_MAX_MODELS: '3' }).USER_COMPARE_MAX_MODELS).toBe(
+      3,
+    );
+    expect(issuesFor({ ...valid, GUEST_COMPARE_MAX_MODELS: '1' })[0]).toMatch(
+      /^GUEST_COMPARE_MAX_MODELS/,
+    );
+    expect(issuesFor({ ...valid, USER_COMPARE_MAX_MODELS: '5' })[0]).toMatch(
+      /^USER_COMPARE_MAX_MODELS/,
+    );
   });
 
   it('treats blank optional values as not configured', () => {

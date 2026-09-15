@@ -86,6 +86,7 @@ function GuestChat() {
         initialMessages={guestChat.data.messages}
         models={models.data.models}
         defaultModel={models.data.defaultModel}
+        providers={models.data.providers}
         quota={me.data?.quota}
       />
     </div>
@@ -140,6 +141,7 @@ function UserChat({ conversationId }: { conversationId: string | undefined }) {
         initialMessages={conversation.data?.messages ?? []}
         models={models.data.models}
         defaultModel={models.data.defaultModel}
+        providers={models.data.providers}
         quota={me.data?.quota}
         onConversationStarted={(id) => {
           // Update the address without remounting the panel mid-stream.

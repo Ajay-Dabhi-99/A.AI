@@ -85,6 +85,9 @@ export const serverEnvSchema = z
     GUEST_SESSION_TTL_MINUTES: z.coerce.number().int().min(5).max(10_080).default(1440),
     GUEST_DAILY_MESSAGE_LIMIT: z.coerce.number().int().min(1).max(1000).default(20),
     USER_DAILY_MESSAGE_LIMIT: z.coerce.number().int().min(1).max(100_000).default(200),
+    /** Models one comparison may run at once (blueprint §13). 2 to 4: the API's hard range. */
+    GUEST_COMPARE_MAX_MODELS: z.coerce.number().int().min(2).max(4).default(2),
+    USER_COMPARE_MAX_MODELS: z.coerce.number().int().min(2).max(4).default(4),
 
     /** Sender shown in emails, e.g. `A.ai <no-reply@your-domain.com>`. */
     EMAIL_FROM: z

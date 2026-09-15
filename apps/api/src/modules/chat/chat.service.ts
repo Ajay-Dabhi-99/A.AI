@@ -1,5 +1,4 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { isAIProviderError } from '@a-ai/ai-core';
 import type {
   AIMessage,
   AIModel,
@@ -11,7 +10,9 @@ import type {
 import type { ChatRequest } from '@a-ai/validation';
 import type { FastifyBaseLogger } from 'fastify';
 import { buildContext, estimateTokens } from '../../ai/context-builder.js';
-import type { ModelDirectory } from '../../providers/model-directory.js';
+import { estimateCostUsd } from '../../ai/cost.js';
+import { toRunError } from '../../ai/run-error.js';
+import type { ModelRegistryService } from '../../providers/model-registry.service.js';
 import type {
   ConversationRepository,
   RunStatusValue,
@@ -43,15 +44,13 @@ export type PreparedChat = {
 };
 
 export type ChatServiceDeps = {
-  directory: ModelDirectory;
+  models: ModelRegistryService;
   conversations: ConversationRepository;
   guestChats: GuestConversationStore;
   quota: QuotaService;
   clock: Clock;
   logger: FastifyBaseLogger;
 };
-
-const GENERIC_FAILURE = 'Something went wrong while answering. Please try again.';
 
 /**
  * Single-model chat (blueprint §4 request path, §10). `prepare` does every
@@ -67,8 +66,8 @@ export class ChatService {
   }
 
   async prepare(caller: ChatCaller, input: ChatRequest): Promise<PreparedChat> {
-    const { directory, conversations, guestChats, quota, clock } = this.#deps;
-    const { provider, model } = directory.resolve(input.provider, input.model);
+    const { models, conversations, guestChats, quota, clock } = this.#deps;
+    const { provider, model } = await models.resolve(input.provider, input.model);
 
     let conversationId: string | null = null;
     let history: AIMessage[] = [];
@@ -187,6 +186,7 @@ export class ChatService {
             outputTokens: finalUsage.outputTokens ?? null,
             usageSource: finalUsage.source,
             errorCode,
+            estimatedCostUsd: estimateCostUsd(model, finalUsage),
             completedAt: clock.now(),
           });
           return { messageId: message?.id ?? null, latencyMs };
@@ -305,10 +305,8 @@ export class ChatService {
   }
 
   #toRunError(error: unknown, runId: string): RunError {
-    if (isAIProviderError(error) || error instanceof AppError) {
-      return { code: error.code, message: error.message, retryable: error.retryable };
-    }
-    this.#deps.logger.error({ err: error, runId }, 'unexpected chat failure');
-    return { code: 'INTERNAL_ERROR', message: GENERIC_FAILURE, retryable: true };
+    return toRunError(error, (unexpected) =>
+      this.#deps.logger.error({ err: unexpected, runId }, 'unexpected chat failure'),
+    );
   }
 }

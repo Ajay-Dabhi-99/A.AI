@@ -27,6 +27,10 @@ export type AIModel = {
   supportsVision: boolean;
   supportsTools: boolean;
   availability: AIModelAvailability;
+  /** USD per million input tokens; null when unknown (no cost estimate). */
+  inputPricePerMillionUsd: number | null;
+  /** USD per million output tokens; null when unknown (no cost estimate). */
+  outputPricePerMillionUsd: number | null;
 };
 
 /**

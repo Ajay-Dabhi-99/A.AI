@@ -75,6 +75,7 @@ describe('Prisma conversation repository', () => {
       outputTokens: 3,
       usageSource: 'provider',
       errorCode: null,
+      estimatedCostUsd: 0.000012,
       completedAt: new Date(),
     });
 

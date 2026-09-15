@@ -1,8 +1,13 @@
 import { ProviderRegistry, type AIProvider } from '@a-ai/ai-core';
-import { createProvider, MODEL_CATALOG, type ProviderKey } from '@a-ai/ai-providers';
+import {
+  createProvider,
+  MODEL_CATALOG,
+  PROVIDER_LABELS,
+  type ProviderKey,
+} from '@a-ai/ai-providers';
 import { PROVIDER_KEY_VARIABLES, type ServerEnv } from '@a-ai/config/server';
 import type { AIModel } from '@a-ai/shared-types';
-import { AppError } from '../shared/errors/app-error.js';
+import type { ModelRegistryDefault } from '../repositories/model-registry.repository.js';
 
 export type ProviderEntry = {
   provider: AIProvider;
@@ -10,7 +15,7 @@ export type ProviderEntry = {
 };
 
 /** Preferred order for the default model: fastest free tier first. */
-const PROVIDER_PREFERENCE: readonly ProviderKey[] = ['groq', 'gemini', 'openrouter'];
+export const PROVIDER_PREFERENCE: readonly ProviderKey[] = ['groq', 'gemini', 'openrouter'];
 
 /** Adapters for every provider whose API key is configured. Missing keys mean absent, never faked. */
 export function providerEntriesFromEnv(env: ServerEnv): ProviderEntry[] {
@@ -20,44 +25,40 @@ export function providerEntriesFromEnv(env: ServerEnv): ProviderEntry[] {
   });
 }
 
+export function createAdapterRegistry(entries: readonly ProviderEntry[]): ProviderRegistry {
+  const registry = new ProviderRegistry();
+  for (const entry of entries) registry.register(entry.provider);
+  return registry;
+}
+
+export const DEFAULT_PROVIDER_NAMES: Readonly<Record<string, string>> = PROVIDER_LABELS;
+
 /**
- * The models this API instance can serve, and the adapter behind each.
- * Routes and services ask the directory; they never construct adapters.
+ * Registry rows seeded from the code catalog. Order follows provider preference
+ * so the default model stays the fastest free tier. verifiedAt is always null:
+ * only an admin who confirmed the limits with a real key sets it.
  */
-export class ModelDirectory {
-  readonly registry = new ProviderRegistry();
-  readonly #models: AIModel[] = [];
+export function registryDefaults(models: readonly AIModel[]): ModelRegistryDefault[] {
+  return models.map((model, index) => ({
+    provider: model.provider,
+    modelId: model.id,
+    name: model.name,
+    category: model.category,
+    contextWindow: model.contextWindow,
+    maxOutputTokens: model.maxOutputTokens,
+    supportsStreaming: model.supportsStreaming,
+    supportsVision: model.supportsVision,
+    supportsTools: model.supportsTools,
+    availability: model.availability,
+    enabled: true,
+    sortOrder: (index + 1) * 10,
+    inputPricePerMillionUsd: model.inputPricePerMillionUsd,
+    outputPricePerMillionUsd: model.outputPricePerMillionUsd,
+    verifiedAt: null,
+  }));
+}
 
-  constructor(entries: ProviderEntry[]) {
-    for (const entry of entries) {
-      this.registry.register(entry.provider);
-      this.#models.push(...entry.models);
-    }
-  }
-
-  list(): AIModel[] {
-    return [...this.#models];
-  }
-
-  defaultModel(): AIModel | undefined {
-    return this.#models[0];
-  }
-
-  /** @throws AppError MODEL_UNAVAILABLE (400) when the model is not offered here. */
-  resolve(providerId: string, modelId: string): { provider: AIProvider; model: AIModel } {
-    const model = this.#models.find(
-      (candidate) => candidate.provider === providerId && candidate.id === modelId,
-    );
-    if (!model || !this.registry.has(providerId)) {
-      throw new AppError(
-        'MODEL_UNAVAILABLE',
-        'This model is not available. Choose another model.',
-        {
-          statusCode: 400,
-          retryable: false,
-        },
-      );
-    }
-    return { provider: this.registry.get(providerId), model };
-  }
+/** Every catalog model, for every provider, in preference order. */
+export function catalogModels(): AIModel[] {
+  return PROVIDER_PREFERENCE.flatMap((key) => [...MODEL_CATALOG[key]]);
 }

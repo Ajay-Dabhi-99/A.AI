@@ -1,15 +1,9 @@
-import type { AIModel } from '@a-ai/shared-types';
+import type { AIModel, ProviderInfo } from '@a-ai/shared-types';
 import { CHAT_MESSAGE_MAX_LENGTH } from '@a-ai/validation';
 import { ArrowUp, Square } from 'lucide-react';
 import { useState, type FormEvent, type KeyboardEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-
-const PROVIDER_LABELS: Record<string, string> = {
-  groq: 'Groq',
-  gemini: 'Gemini',
-  openrouter: 'OpenRouter',
-};
 
 function modelKey(model: Pick<AIModel, 'provider' | 'id'>): string {
   return `${model.provider}::${model.id}`;
@@ -17,6 +11,7 @@ function modelKey(model: Pick<AIModel, 'provider' | 'id'>): string {
 
 export function Composer({
   models,
+  providers,
   model,
   onSelectModel,
   streaming,
@@ -26,6 +21,8 @@ export function Composer({
   footer,
 }: {
   models: AIModel[];
+  /** Provider display names come from the API, never from the client (Phase 3 gate). */
+  providers: ProviderInfo[];
   model: AIModel | undefined;
   onSelectModel: (model: AIModel) => void;
   streaming: boolean;
@@ -40,7 +37,7 @@ export function Composer({
   const canSend =
     !disabled && !streaming && !tooLong && draft.trim().length > 0 && model !== undefined;
 
-  const providers = [...new Set(models.map((item) => item.provider))];
+  const providerIds = [...new Set(models.map((item) => item.provider))];
 
   async function submit(event?: FormEvent) {
     event?.preventDefault();
@@ -92,8 +89,11 @@ export function Composer({
             disabled={streaming || models.length === 0}
             className="h-8 max-w-[14rem] truncate rounded-lg border border-border bg-surface-muted px-2 text-xs text-foreground"
           >
-            {providers.map((provider) => (
-              <optgroup key={provider} label={PROVIDER_LABELS[provider] ?? provider}>
+            {providerIds.map((provider) => (
+              <optgroup
+                key={provider}
+                label={providers.find((item) => item.id === provider)?.name ?? provider}
+              >
                 {models
                   .filter((item) => item.provider === provider)
                   .map((item) => (

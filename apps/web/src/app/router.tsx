@@ -1,8 +1,10 @@
 import { createBrowserRouter, type RouteObject } from 'react-router';
 import { ChatPage } from '@/pages/chat-page';
+import { ComparePage } from '@/pages/compare-page';
 import { ForgotPasswordPage } from '@/pages/forgot-password-page';
 import { LandingPage } from '@/pages/landing-page';
 import { LoginPage } from '@/pages/login-page';
+import { ModelsPage } from '@/pages/models-page';
 import { NotFoundPage } from '@/pages/not-found-page';
 import { ResetPasswordPage } from '@/pages/reset-password-page';
 import { SettingsPage } from '@/pages/settings-page';
@@ -25,6 +27,10 @@ export const routes: RouteObject[] = [
       // Guests and users; saved conversations (/chat/:id) need an account.
       { path: 'chat', element: <ChatPage /> },
       { path: 'chat/:conversationId', element: <ChatPage /> },
+      // Guests (2 models) and users (4 models); results are streamed side by side.
+      { path: 'compare', element: <ComparePage /> },
+      // Public catalog; admin controls appear for administrators.
+      { path: 'models', element: <ModelsPage /> },
       {
         element: <RequireUser />,
         children: [{ path: 'settings', element: <SettingsPage /> }],

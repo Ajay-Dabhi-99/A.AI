@@ -1,3 +1,4 @@
+import type { ProviderRegistry } from '@a-ai/ai-core';
 import { appUrl, type ServerEnv } from '@a-ai/config/server';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Redis } from 'ioredis';
@@ -6,16 +7,30 @@ import { AuthService } from '../modules/auth/auth.service.js';
 import { SessionService } from '../modules/auth/session.service.js';
 import { ChatService } from '../modules/chat/chat.service.js';
 import { GuestConversationStore } from '../modules/chat/guest-conversation.store.js';
+import { ComparisonService } from '../modules/comparison/comparison.service.js';
+import { GuestComparisonStore } from '../modules/comparison/guest-comparison.store.js';
 import { GuestService } from '../modules/guest/guest.service.js';
 import {
-  ModelDirectory,
+  catalogModels,
+  createAdapterRegistry,
+  DEFAULT_PROVIDER_NAMES,
   providerEntriesFromEnv,
+  registryDefaults,
   type ProviderEntry,
 } from '../providers/model-directory.js';
+import { ModelRegistryService } from '../providers/model-registry.service.js';
+import {
+  createPrismaComparisonRepository,
+  type ComparisonRepository,
+} from '../repositories/comparison.repository.js';
 import {
   createPrismaConversationRepository,
   type ConversationRepository,
 } from '../repositories/conversation.repository.js';
+import {
+  createPrismaModelRegistryRepository,
+  type ModelRegistryRepository,
+} from '../repositories/model-registry.repository.js';
 import {
   createPrismaRepositories,
   createPrismaTransactionRunner,
@@ -32,6 +47,7 @@ export type AppServices = {
   repositories: Repositories;
   transaction: TransactionRunner;
   conversations: ConversationRepository;
+  comparisons: ComparisonRepository;
   store: KeyValueStore;
   rateLimiter: RateLimiter;
   rateLimits: RateLimitRules;
@@ -40,8 +56,12 @@ export type AppServices = {
   guestChats: GuestConversationStore;
   sessions: SessionService;
   auth: AuthService;
-  directory: ModelDirectory;
+  /** Adapters for providers whose key is configured. */
+  adapters: ProviderRegistry;
+  /** The model registry: which models exist and whether each is usable. */
+  models: ModelRegistryService;
   chat: ChatService;
+  comparison: ComparisonService;
   email: EmailSender;
   clock: Clock;
   /** JWT_SECRET: keys every HMAC (sessions, links, IPs, emails). */
@@ -56,11 +76,16 @@ export type ServiceOverrides = {
   repositories?: Repositories;
   transaction?: TransactionRunner;
   conversations?: ConversationRepository;
+  comparisons?: ComparisonRepository;
+  modelRegistry?: ModelRegistryRepository;
+  /** Replaces the configured adapters; their models become the registry defaults. */
   providers?: ProviderEntry[];
   email?: EmailSender;
   hasher?: PasswordHasher;
   clock?: Clock;
   rateLimits?: Partial<RateLimitRules>;
+  /** Shorter per-run comparison timeout, so tests need not wait two minutes. */
+  comparisonRunTimeoutMs?: number;
 };
 
 export function createServices(input: {
@@ -79,6 +104,7 @@ export function createServices(input: {
     overrides.transaction ??
     (overrides.repositories ? passthrough : createPrismaTransactionRunner(prisma));
   const conversations = overrides.conversations ?? createPrismaConversationRepository(prisma);
+  const comparisons = overrides.comparisons ?? createPrismaComparisonRepository(prisma);
 
   const store = createRedisStore(redis);
   const email = overrides.email ?? createEmailSender(env, logger);
@@ -88,7 +114,21 @@ export function createServices(input: {
     clock,
   );
   const guestChats = new GuestConversationStore(store, clock);
-  const directory = new ModelDirectory(overrides.providers ?? providerEntriesFromEnv(env));
+
+  const entries = overrides.providers ?? providerEntriesFromEnv(env);
+  const adapters = createAdapterRegistry(entries);
+  const models = new ModelRegistryService({
+    repository: overrides.modelRegistry ?? createPrismaModelRegistryRepository(prisma),
+    adapters,
+    // Every catalog model is listed, including providers without a key (shown as not configured).
+    defaults: registryDefaults(
+      overrides.providers ? entries.flatMap((entry) => [...entry.models]) : catalogModels(),
+    ),
+    providerNames: DEFAULT_PROVIDER_NAMES,
+    clock,
+    logger,
+  });
+
   const sessions = new SessionService({
     sessions: repositories.sessions,
     secret: env.JWT_SECRET,
@@ -99,6 +139,7 @@ export function createServices(input: {
     repositories,
     transaction,
     conversations,
+    comparisons,
     store,
     rateLimiter: new RateLimiter(store),
     rateLimits: { ...RATE_LIMITS, ...overrides.rateLimits },
@@ -117,8 +158,21 @@ export function createServices(input: {
       clock,
       logger,
     }),
-    directory,
-    chat: new ChatService({ directory, conversations, guestChats, quota, clock, logger }),
+    adapters,
+    models,
+    chat: new ChatService({ models, conversations, guestChats, quota, clock, logger }),
+    comparison: new ComparisonService({
+      models,
+      comparisons,
+      guestComparisons: new GuestComparisonStore(store, clock),
+      quota,
+      limits: { guest: env.GUEST_COMPARE_MAX_MODELS, user: env.USER_COMPARE_MAX_MODELS },
+      clock,
+      logger,
+      ...(overrides.comparisonRunTimeoutMs === undefined
+        ? {}
+        : { runTimeoutMs: overrides.comparisonRunTimeoutMs }),
+    }),
     email,
     clock,
     secret: env.JWT_SECRET,

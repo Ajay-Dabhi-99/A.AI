@@ -4,5 +4,9 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: { conditions: ['@a-ai/source'] },
   ssr: { resolve: { conditions: ['@a-ai/source'] } },
-  test: { include: ['tests/integration/**/*.test.ts'] },
+  test: {
+    include: ['tests/integration/**/*.test.ts'],
+    // Files run in parallel and hash real passwords; cold starts can exceed the 5 s default.
+    testTimeout: 20_000,
+  },
 });

@@ -1,10 +1,14 @@
 /** Authentication and identity contracts (Phase 1, docs/api/auth.md). */
 
+export type UserRole = 'user' | 'admin';
+
 /** The public view of an account. Never includes password or token data. */
 export type AuthUser = {
   id: string;
   email: string;
   emailVerified: boolean;
+  /** Admins can manage the model registry (Phase 3). */
+  role: UserRole;
   createdAt: string;
 };
 
@@ -23,10 +27,17 @@ export type QuotaSummary = {
  */
 export type Identity = { kind: 'user'; user: AuthUser } | { kind: 'guest'; expiresAt: string };
 
+/** Per-identity limits the UI needs before it sends a request (the API enforces them). */
+export type IdentityLimits = {
+  /** Most models one comparison may run (Phase 4). */
+  compareMaxModels: number;
+};
+
 /** GET /api/me */
 export type MeResponse = {
   identity: Identity;
   quota: QuotaSummary;
+  limits: IdentityLimits;
 };
 
 /** Login, email verification and password reset all end with a signed-in user. */

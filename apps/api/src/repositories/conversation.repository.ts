@@ -51,6 +51,8 @@ export type RunCompletion = {
   outputTokens: number | null;
   usageSource: 'provider' | 'estimated' | null;
   errorCode: string | null;
+  /** From registry prices; null when a price or token count is unknown. */
+  estimatedCostUsd: number | null;
   completedAt: Date;
 };
 
@@ -149,6 +151,7 @@ export function createPrismaConversationRepository(prisma: PrismaClient): Conver
             outputTokens: completion.outputTokens,
             usageSource: completion.usageSource,
             errorCode: completion.errorCode,
+            estimatedCostUsd: completion.estimatedCostUsd,
             completedAt: completion.completedAt,
           },
         });

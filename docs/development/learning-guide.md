@@ -147,22 +147,55 @@ pnpm dev
 
 **Design:** [chat API](../api/chat.md), [models API](../api/models.md), [provider abstraction](../architecture/provider-abstraction.md).
 
-## Phase 3: Model registry + selector
+## Phase 3: Model registry + selector (built, awaiting live verification)
 
-**Goal:** models are data with capabilities, not hard-coded names.
+**Goal:** models are data with capabilities and status, not hard-coded names; an admin can change them without a deploy.
 
-- **Learn:** capability-based UI, seeding, caching reference data.
-- **Where:** `prisma/seed.ts`, `apps/api/src/modules/models`, `apps/web/src/features/models`.
-- **Design:** [models API](../api/models.md).
+### Concepts you learn
+
+| Concept                                                    | Where to see it                                                              |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Code defaults seeded into a table, never overwriting edits | `prisma/seed.ts`, `ModelRegistryService` (`#ensureDefaults`)                 |
+| Deriving status instead of storing it                      | `apps/api/src/providers/model-registry.service.ts`                           |
+| Caching reference data with a short TTL and invalidation   | same file (`REGISTRY_CACHE_TTL_MS`, `invalidate`)                            |
+| Role-based access checked on the server                    | `apps/api/src/plugins/auth.ts` (`requireAdmin`)                              |
+| Bootstrapping the first admin without a risky endpoint     | `scripts/promote-admin.ts`                                                   |
+| Strict partial updates (PATCH) and cross-field validation  | `packages/validation/src/models.ts`                                          |
+| Audit logging: who changed what, not the values            | `apps/api/src/modules/models/models.routes.ts`                               |
+| Money as nullable decimals; unknown is not zero            | `apps/api/src/ai/cost.ts`, [ADR-010](../decisions/ADR-010-model-registry.md) |
+| Sending only changed fields from a form                    | `apps/web/src/features/models/model-card.tsx`                                |
+
+### Tests to read
+
+- `apps/api/tests/unit/model-registry.service.test.ts`: status rules, cache, defaults, update checks.
+- `apps/api/tests/integration/models.test.ts`: 401/403/404/400 on the admin API and a real PATCH.
+- `apps/web/tests/models-page.test.tsx`: public view, admin disable and edit.
+
+### Try it (needs Supabase)
+
+```bash
+pnpm db:deploy
+```
+
+```bash
+pnpm admin:promote you@example.com
+```
+
+1. Run `pnpm dev`, sign in as that account and open http://localhost:5180/models.
+2. Disable a model; open **Chat** and see it gone from the picker.
+3. Set a price, send a message, and look at `estimated_cost_usd` on the new `model_runs` row.
+
+**Design:** [models API](../api/models.md), [ADR-010](../decisions/ADR-010-model-registry.md).
 
 ## Phase 4: Comparison engine
 
 **Goal:** the core of A.ai. One prompt runs on several models in parallel, and one failure never breaks the others.
 
 - **Learn:** `Promise.allSettled`, per-task timeouts, multiplexing several streams on one connection, resilient UI columns.
-- **Where:** `apps/api/src/modules/comparison`, `apps/web/src/features/comparison`.
-- **See it work:** compare four models with one provider key deliberately wrong; three columns finish, one shows an error card.
-- **Design:** [comparison engine](../architecture/comparison-engine.md).
+- **Where:** `apps/api/src/modules/comparison` (service, routes, guest store), `apps/api/src/repositories/comparison.repository.ts`, `apps/web/src/features/compare`, `apps/web/src/pages/compare-page.tsx`.
+- **Read first:** `ComparisonService.#execute`: one `AbortController` per run, the request's abort forwarded to all of them, a timer that aborts only its own run, and `Promise.allSettled` in `#prepared`.
+- **See it work:** sign in, open `/compare`, pick four models with one provider key deliberately wrong; three columns finish, one shows an error card with Retry. The unit test `comparison.service.test.ts` shows the same with scripted providers.
+- **Design:** [comparison engine](../architecture/comparison-engine.md), [ADR-011](../decisions/ADR-011-comparison-engine.md), [comparison API](../api/comparison.md).
 
 ## Phase 5: Context + token management
 

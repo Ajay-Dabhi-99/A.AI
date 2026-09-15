@@ -20,6 +20,10 @@ export function createPrismaRepositories(db: Db): Repositories {
           throw error;
         }
       },
+      setRoleByEmail: async (email, role) => {
+        const { count } = await db.user.updateMany({ where: { email }, data: { role } });
+        return count === 1 ? db.user.findUnique({ where: { email } }) : null;
+      },
       updatePasswordHash: async (id, passwordHash) => {
         await db.user.update({ where: { id }, data: { passwordHash } });
       },

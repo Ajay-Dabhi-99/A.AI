@@ -39,14 +39,20 @@ Both are `HttpOnly`, `SameSite=Lax`, `Path=/`, and `Secure` in production.
       "id": "0b9f…",
       "email": "person@example.com",
       "emailVerified": true,
+      "role": "user",
       "createdAt": "2026-09-13T10:00:00.000Z"
     }
   },
-  "quota": { "limit": 200, "used": 3, "remaining": 197, "resetsAt": "2026-09-14T00:00:00.000Z" }
+  "quota": { "limit": 200, "used": 3, "remaining": 197, "resetsAt": "2026-09-14T00:00:00.000Z" },
+  "limits": { "compareMaxModels": 4 }
 }
 ```
 
-A guest gets `"identity": { "kind": "guest", "expiresAt": "…" }` and the guest limit. The guest id itself is never returned.
+A guest gets `"identity": { "kind": "guest", "expiresAt": "…" }`, the guest quota and the guest limits. The guest id itself is never returned.
+
+`limits.compareMaxModels` (Phase 4) is how many models one [comparison](comparison.md) may run: `GUEST_COMPARE_MAX_MODELS` (default 2) or `USER_COMPARE_MAX_MODELS` (default 4). The API enforces it; the web app uses it to lock the model picker.
+
+`role` is `user` or `admin` (Phase 3). It only decides which controls the web app shows; admin routes check the role on the server. See [making the first admin](models.md#making-the-first-admin).
 
 ## Field rules
 

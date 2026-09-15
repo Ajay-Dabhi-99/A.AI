@@ -8,7 +8,9 @@ import {
 } from '../../src/modules/chat/chat.service.js';
 import { GuestConversationStore } from '../../src/modules/chat/guest-conversation.store.js';
 import { GuestService } from '../../src/modules/guest/guest.service.js';
-import { ModelDirectory } from '../../src/providers/model-directory.js';
+import { createAdapterRegistry, registryDefaults } from '../../src/providers/model-directory.js';
+import { ModelRegistryService } from '../../src/providers/model-registry.service.js';
+import { createMemoryModelRegistry } from '../helpers/memory-model-registry.js';
 import { createRedisStore } from '../../src/services/kv-store.js';
 import { QuotaService } from '../../src/services/quota.service.js';
 import { AppError } from '../../src/shared/errors/app-error.js';
@@ -44,9 +46,30 @@ function setup(options: { contextWindow?: number } = {}) {
     'fast-1',
     options.contextWindow ? { contextWindow: options.contextWindow, maxOutputTokens: 50 } : {},
   );
-  const directory = new ModelDirectory([{ provider, models: [model] }]);
-  const chat = new ChatService({ directory, conversations, guestChats, quota, clock, logger });
-  return { store, clock, logger, quota, guestChats, guests, conversations, provider, chat };
+  const entries = [{ provider, models: [model] }];
+  const registry = createMemoryModelRegistry();
+  const models = new ModelRegistryService({
+    repository: registry,
+    adapters: createAdapterRegistry(entries),
+    defaults: registryDefaults([model]),
+    providerNames: {},
+    clock,
+    logger,
+  });
+  const chat = new ChatService({ models, conversations, guestChats, quota, clock, logger });
+  return {
+    store,
+    clock,
+    logger,
+    quota,
+    guestChats,
+    guests,
+    conversations,
+    provider,
+    chat,
+    models,
+    registry,
+  };
 }
 
 type Context = ReturnType<typeof setup>;
@@ -176,6 +199,37 @@ describe('ChatService for signed-in users', () => {
     expect(error.code).toBe('CONTEXT_TOO_LARGE');
     expect(ctx.conversations.data.messages).toHaveLength(0);
     expect((await ctx.quota.summary({ kind: 'user', id: 'user-1' })).used).toBe(0);
+  });
+});
+
+describe('cost estimates', () => {
+  it('saves an estimated cost from registry prices and provider usage', async () => {
+    const ctx = setup();
+    const [row] = await ctx.models.catalog();
+    await ctx.models.update(row!.registryId, {
+      inputPricePerMillionUsd: 0.5,
+      outputPricePerMillionUsd: 2,
+    });
+
+    await run(ctx, USER, { message: 'priced question' });
+    // 20 input tokens × $0.50/M + 5 output tokens × $2/M
+    expect(ctx.conversations.data.runs[0]).toMatchObject({ estimatedCostUsd: 0.00002 });
+  });
+
+  it('records no cost when prices are unknown', async () => {
+    const ctx = setup();
+    await run(ctx, USER, { message: 'unpriced question' });
+    expect(ctx.conversations.data.runs[0]).toMatchObject({ estimatedCostUsd: null });
+  });
+
+  it('refuses a model an admin disabled', async () => {
+    const ctx = setup();
+    const [row] = await ctx.models.catalog();
+    await ctx.models.update(row!.registryId, { enabled: false });
+    const error = await appError(
+      ctx.chat.prepare(USER, { provider: 'scripted', model: 'fast-1', message: 'hi' }),
+    );
+    expect(error.code).toBe('MODEL_UNAVAILABLE');
   });
 });
 

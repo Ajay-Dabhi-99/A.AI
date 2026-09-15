@@ -126,6 +126,7 @@ export function createMemoryConversations(): MemoryConversations {
         outputTokens: completion.outputTokens,
         usageSource: completion.usageSource,
         errorCode: completion.errorCode,
+        estimatedCostUsd: completion.estimatedCostUsd,
         completedAt: completion.completedAt,
       });
       touch(completion.conversationId, completion.completedAt);

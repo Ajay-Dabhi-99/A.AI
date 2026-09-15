@@ -20,6 +20,8 @@ export function testModel(provider: string, id: string, overrides: Partial<AIMod
     supportsVision: false,
     supportsTools: false,
     availability: 'free',
+    inputPricePerMillionUsd: null,
+    outputPricePerMillionUsd: null,
     ...overrides,
   };
 }

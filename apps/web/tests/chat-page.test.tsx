@@ -25,6 +25,8 @@ const models: AIModel[] = [
     supportsVision: false,
     supportsTools: true,
     availability: 'free-tier',
+    inputPricePerMillionUsd: null,
+    outputPricePerMillionUsd: null,
   },
   {
     id: 'gemini-3.8-flash',
@@ -37,6 +39,8 @@ const models: AIModel[] = [
     supportsVision: true,
     supportsTools: true,
     availability: 'free-tier',
+    inputPricePerMillionUsd: null,
+    outputPricePerMillionUsd: null,
   },
 ];
 
@@ -45,8 +49,13 @@ beforeEach(() => {
   useModelStore.setState({ selected: null });
 });
 
+const providers = [
+  { id: 'groq', name: 'Groq', configured: true },
+  { id: 'gemini', name: 'Gemini', configured: true },
+];
+
 const modelsRoute = () =>
-  jsonResponse({ models, defaultModel: { provider: 'groq', id: 'openai/gpt-oss-20b' } });
+  jsonResponse({ models, providers, defaultModel: { provider: 'groq', id: 'openai/gpt-oss-20b' } });
 
 type StreamEvent = [name: string, data: object];
 
@@ -278,7 +287,9 @@ describe('chat page as a guest', () => {
 
   it('explains when no model is configured and disables sending', async () => {
     mockApi(
-      guestRoutes({ 'GET /api/models': () => jsonResponse({ models: [], defaultModel: null }) }),
+      guestRoutes({
+        'GET /api/models': () => jsonResponse({ models: [], defaultModel: null, providers: [] }),
+      }),
     );
     renderApp('/chat');
 

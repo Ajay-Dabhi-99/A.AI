@@ -9,6 +9,7 @@ import type {
   GuestConversationResponse,
   GuestMigrationResponse,
   ModelsResponse,
+  ProviderInfo,
 } from '@a-ai/shared-types';
 import { z } from 'zod';
 import { errorCodeSchema } from './errors.js';
@@ -50,11 +51,20 @@ export const aiModelSchema = z.object({
   supportsVision: z.boolean(),
   supportsTools: z.boolean(),
   availability: z.enum(['free', 'free-tier', 'paid']),
+  inputPricePerMillionUsd: z.number().nonnegative().nullable(),
+  outputPricePerMillionUsd: z.number().nonnegative().nullable(),
 }) satisfies z.ZodType<AIModel>;
+
+export const providerInfoSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  configured: z.boolean(),
+}) satisfies z.ZodType<ProviderInfo>;
 
 export const modelsResponseSchema = z.object({
   models: z.array(aiModelSchema),
   defaultModel: z.object({ provider: z.string(), id: z.string() }).nullable(),
+  providers: z.array(providerInfoSchema),
 }) satisfies z.ZodType<ModelsResponse>;
 
 const runStatusSchema = z.enum(['running', 'completed', 'failed', 'cancelled', 'timeout']);
@@ -99,7 +109,7 @@ export const guestMigrationResponseSchema = z.object({
   conversationId: z.string().nullable(),
 }) satisfies z.ZodType<GuestMigrationResponse>;
 
-const usageSchema = z.object({
+export const usageSchema = z.object({
   inputTokens: z.number().int().nonnegative().optional(),
   outputTokens: z.number().int().nonnegative().optional(),
   totalTokens: z.number().int().nonnegative().optional(),

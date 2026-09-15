@@ -91,3 +91,15 @@ export async function requireUser(
   }
   return identity;
 }
+
+/** @throws AUTH_REQUIRED for guests, FORBIDDEN for signed-in users who are not admins. */
+export async function requireAdmin(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<UserIdentity> {
+  const identity = await requireUser(request, reply);
+  if (identity.user.role !== 'ADMIN') {
+    throw new AppError('FORBIDDEN', 'You need administrator access for this.');
+  }
+  return identity;
+}

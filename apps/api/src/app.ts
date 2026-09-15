@@ -7,7 +7,9 @@ import { registerOriginCheck } from './middleware/origin-check.js';
 import { registerApiRateLimit } from './middleware/rate-limit.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { chatRoutes } from './modules/chat/chat.routes.js';
+import { comparisonRoutes } from './modules/comparison/comparison.routes.js';
 import { healthRoutes } from './modules/health/health.routes.js';
+import { modelRoutes } from './modules/models/models.routes.js';
 import { meRoutes } from './modules/users/me.routes.js';
 import { registerCorsAndSecurity } from './plugins/cors.js';
 import { genReqId, loggerOptions, registerObservability } from './plugins/observability.js';
@@ -73,6 +75,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(authRoutes, { prefix: '/api/auth' });
   await app.register(meRoutes);
   await app.register(chatRoutes);
+  await app.register(comparisonRoutes);
+  await app.register(modelRoutes);
 
   return app;
 }

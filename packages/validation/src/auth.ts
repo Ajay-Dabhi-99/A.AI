@@ -67,6 +67,7 @@ export const authUserSchema = z.object({
   id: z.string(),
   email: z.string(),
   emailVerified: z.boolean(),
+  role: z.enum(['user', 'admin']),
   createdAt: z.string(),
 }) satisfies z.ZodType<AuthUser>;
 
@@ -83,6 +84,7 @@ export const meResponseSchema = z.object({
     z.object({ kind: z.literal('guest'), expiresAt: z.string() }),
   ]),
   quota: quotaSummarySchema,
+  limits: z.object({ compareMaxModels: z.number().int().positive() }),
 }) satisfies z.ZodType<MeResponse>;
 
 export const authUserResponseSchema = z.object({
