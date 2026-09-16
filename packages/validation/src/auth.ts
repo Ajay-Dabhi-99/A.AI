@@ -29,6 +29,51 @@ export const passwordSchema = z
   .min(PASSWORD_MIN_LENGTH, `Use at least ${PASSWORD_MIN_LENGTH} characters`)
   .max(PASSWORD_MAX_LENGTH, `Use at most ${PASSWORD_MAX_LENGTH} characters`);
 
+export const NAME_MAX_LENGTH = 60;
+export const PHONE_MAX_LENGTH = 24;
+
+/** A blank value is allowed everywhere: every profile field is optional. */
+const NAME_PATTERN = /^([\p{L}\p{M}][\p{L}\p{M}'’ .-]*)?$/u;
+const PHONE_PATTERN = /^(\+?[\d ()-]+)?$/;
+
+const nameField = z
+  .string()
+  .trim()
+  .max(NAME_MAX_LENGTH, `Use at most ${NAME_MAX_LENGTH} characters`)
+  .regex(NAME_PATTERN, 'Use letters, spaces, hyphens or apostrophes');
+
+const phoneField = z
+  .string()
+  .trim()
+  .max(PHONE_MAX_LENGTH, `Use at most ${PHONE_MAX_LENGTH} characters`)
+  .regex(PHONE_PATTERN, 'Use digits, and + ( ) - if you need them')
+  .refine(
+    (value) => value === '' || value.replace(/\D/g, '').length >= 7,
+    'Enter at least 7 digits, including the country code',
+  );
+
+/** The shape a form holds: plain strings, where blank means "not set". */
+export const profileFormSchema = z.object({
+  firstName: nameField,
+  lastName: nameField,
+  phone: phoneField,
+});
+
+/**
+ * The request the API accepts. A field may be blank, null or missing; each of
+ * those clears it, so one request replaces the whole profile.
+ */
+const optionalField = <Field extends z.ZodType<string, unknown>>(field: Field) =>
+  field
+    .nullish()
+    .transform((value) => (value === undefined || value === null || value === '' ? null : value));
+
+export const profileUpdateSchema = z.object({
+  firstName: optionalField(nameField),
+  lastName: optionalField(nameField),
+  phone: optionalField(phoneField),
+});
+
 /** Tokens from emailed links: 32 random bytes, base64url. */
 export const linkTokenSchema = z
   .string({ error: 'This link is invalid' })
@@ -63,11 +108,25 @@ export type LoginRequest = z.infer<typeof loginRequestSchema>;
 export type EmailRequest = z.infer<typeof emailRequestSchema>;
 export type VerifyEmailRequest = z.infer<typeof verifyEmailRequestSchema>;
 export type ResetPasswordRequest = z.infer<typeof resetPasswordRequestSchema>;
+export type ProfileUpdateRequest = z.infer<typeof profileUpdateSchema>;
+export type ProfileFormValues = z.infer<typeof profileFormSchema>;
+
+/** Blank fields become null, which clears them. */
+export function toProfileUpdate(values: ProfileFormValues): ProfileUpdateRequest {
+  return {
+    firstName: values.firstName || null,
+    lastName: values.lastName || null,
+    phone: values.phone || null,
+  };
+}
 
 export const authUserSchema = z.object({
   id: z.string(),
   email: z.string(),
   emailVerified: z.boolean(),
+  firstName: z.string().nullable(),
+  lastName: z.string().nullable(),
+  phone: z.string().nullable(),
   role: z.enum(['user', 'admin']),
   createdAt: z.string(),
 }) satisfies z.ZodType<AuthUser>;

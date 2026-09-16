@@ -43,12 +43,21 @@ export function createMemoryRepositories(): MemoryRepositories {
           id: randomUUID(),
           email,
           passwordHash,
+          firstName: null,
+          lastName: null,
+          phone: null,
           role: 'USER',
           emailVerifiedAt: null,
           createdAt: now,
           updatedAt: now,
         };
         data.users.push(user);
+        return copy(user);
+      },
+      updateProfile: async (id, profile) => {
+        const user = data.users.find((candidate) => candidate.id === id);
+        if (!user) throw new Error(`no user ${id}`);
+        Object.assign(user, profile, { updatedAt: new Date() });
         return copy(user);
       },
       setRoleByEmail: async (email, role) => {

@@ -45,6 +45,9 @@ export function toAuthUser(user: UserRecord): AuthUser {
     id: user.id,
     email: user.email,
     emailVerified: user.emailVerifiedAt !== null,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    phone: user.phone,
     role: user.role === 'ADMIN' ? 'admin' : 'user',
     createdAt: user.createdAt.toISOString(),
   };

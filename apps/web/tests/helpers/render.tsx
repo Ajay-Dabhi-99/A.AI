@@ -59,6 +59,9 @@ export const testUser: AuthUser = {
   id: 'user-1',
   email: 'person@example.com',
   emailVerified: true,
+  firstName: null,
+  lastName: null,
+  phone: null,
   role: 'user',
   createdAt: '2026-09-01T12:00:00.000Z',
 };

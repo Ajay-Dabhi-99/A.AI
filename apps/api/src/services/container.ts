@@ -7,6 +7,7 @@ import { ModelSummarizer, type ConversationSummarizer } from '../ai/summarizer.j
 import { TokenService } from '../ai/token.service.js';
 import type { PrismaClient } from '../generated/prisma/client.js';
 import { AuthService } from '../modules/auth/auth.service.js';
+import { ProfileService } from '../modules/users/profile.service.js';
 import { SessionService } from '../modules/auth/session.service.js';
 import { ChatService } from '../modules/chat/chat.service.js';
 import { GuestConversationStore } from '../modules/chat/guest-conversation.store.js';
@@ -87,6 +88,7 @@ export type AppServices = {
   guestChats: GuestConversationStore;
   sessions: SessionService;
   auth: AuthService;
+  profile: ProfileService;
   /** Adapters for providers whose key is configured. */
   adapters: ProviderRegistry;
   /** The model registry: which models exist and whether each is usable. */
@@ -283,6 +285,7 @@ export function createServices(input: {
       clock,
       logger,
     }),
+    profile: new ProfileService(repositories),
     adapters,
     models,
     health,

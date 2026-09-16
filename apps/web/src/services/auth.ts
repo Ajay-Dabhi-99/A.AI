@@ -5,6 +5,7 @@ import {
   meResponseSchema,
   type EmailRequest,
   type LoginRequest,
+  type ProfileUpdateRequest,
   type ResetPasswordRequest,
   type SignupRequest,
   type VerifyEmailRequest,
@@ -13,6 +14,13 @@ import { apiRequest } from './api';
 
 export const fetchMe = (signal?: AbortSignal): Promise<MeResponse> =>
   apiRequest('/api/me', { schema: meResponseSchema, ...(signal ? { signal } : {}) });
+
+export const updateProfile = (input: ProfileUpdateRequest): Promise<AuthUserResponse> =>
+  apiRequest('/api/me/profile', {
+    method: 'PATCH',
+    body: input,
+    schema: authUserResponseSchema,
+  });
 
 export const signup = (input: SignupRequest): Promise<AcceptedResponse> =>
   apiRequest('/api/auth/signup', { method: 'POST', body: input, schema: acceptedResponseSchema });

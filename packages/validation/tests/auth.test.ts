@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   emailRequestSchema,
+  profileFormSchema,
+  profileUpdateSchema,
+  toProfileUpdate,
   loginRequestSchema,
   meResponseSchema,
   resetPasswordRequestSchema,
@@ -82,6 +85,9 @@ describe('meResponseSchema', () => {
             id: 'u1',
             email: 'a@b.co',
             emailVerified: true,
+            firstName: null,
+            lastName: null,
+            phone: null,
             role: 'user',
             createdAt: '2026-09-13T00:00:00.000Z',
           },
@@ -101,5 +107,52 @@ describe('meResponseSchema', () => {
 
   it('rejects an unknown identity kind', () => {
     expect(meResponseSchema.safeParse({ identity: { kind: 'admin' }, quota }).success).toBe(false);
+  });
+});
+
+describe('profile', () => {
+  it('accepts a name and phone, and trims them', () => {
+    const parsed = profileUpdateSchema.parse({
+      firstName: '  Ada  ',
+      lastName: "O'Neil-Smith",
+      phone: ' +91 98765 43210 ',
+    });
+    expect(parsed).toEqual({
+      firstName: 'Ada',
+      lastName: "O'Neil-Smith",
+      phone: '+91 98765 43210',
+    });
+  });
+
+  it('treats blank, null and missing fields as "not set"', () => {
+    expect(profileUpdateSchema.parse({ firstName: '   ', lastName: null })).toEqual({
+      firstName: null,
+      lastName: null,
+      phone: null,
+    });
+  });
+
+  it('rejects digits in a name and a phone that is not a number', () => {
+    const name = profileUpdateSchema.safeParse({ firstName: 'Ada2' });
+    expect(name.success).toBe(false);
+    expect(name.error?.issues[0]?.message).toBe('Use letters, spaces, hyphens or apostrophes');
+
+    const phone = profileUpdateSchema.safeParse({ phone: 'call me' });
+    expect(phone.error?.issues[0]?.message).toBe('Use digits, and + ( ) - if you need them');
+
+    const short = profileUpdateSchema.safeParse({ phone: '12345' });
+    expect(short.error?.issues[0]?.message).toBe(
+      'Enter at least 7 digits, including the country code',
+    );
+  });
+
+  it('rejects names longer than the column allows', () => {
+    expect(profileUpdateSchema.safeParse({ firstName: 'a'.repeat(61) }).success).toBe(false);
+    expect(profileUpdateSchema.safeParse({ firstName: 'a'.repeat(60) }).success).toBe(true);
+  });
+
+  it('lets a form hold blanks and converts them to a request', () => {
+    const values = profileFormSchema.parse({ firstName: 'Ada', lastName: '', phone: '' });
+    expect(toProfileUpdate(values)).toEqual({ firstName: 'Ada', lastName: null, phone: null });
   });
 });

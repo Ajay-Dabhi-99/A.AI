@@ -19,6 +19,10 @@ model User {
   id              String         @id @default(uuid()) @db.Uuid
   email           String         @unique @db.VarChar(254)
   passwordHash    String
+  /// Optional profile details; null until the account fills them in.
+  firstName       String?        @db.VarChar(60)
+  lastName        String?        @db.VarChar(60)
+  phone           String?        @db.VarChar(24)
   role            UserRole       @default(USER)
   emailVerifiedAt DateTime?      @db.Timestamptz(3)
   createdAt       DateTime       @default(now()) @db.Timestamptz(3)

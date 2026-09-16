@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import { buttonVariants } from '@/components/ui/button-variants';
+import { displayName, initials } from '@/features/profile/identity';
 import { currentUser, useMe } from '@/hooks/use-me';
 
 /** Sign-in buttons for guests, an account link for signed-in users. */
@@ -14,10 +15,10 @@ export function HeaderAccount() {
       <Link
         to="/settings"
         aria-label={`Account settings for ${user.email}`}
-        title={user.email}
-        className="inline-flex size-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground uppercase transition-opacity hover:opacity-90"
+        title={displayName(user) + ' · ' + user.email}
+        className="inline-flex size-9 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90"
       >
-        {user.email.charAt(0)}
+        {initials(user)}
       </Link>
     );
   }

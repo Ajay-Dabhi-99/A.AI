@@ -40,6 +40,15 @@ export const useResetPassword = () => useSignInMutation(authApi.resetPassword);
 export const useLogout = () => useSignOutMutation(authApi.logout);
 export const useLogoutEverywhere = () => useSignOutMutation(authApi.logoutEverywhere);
 
+/** Saving the profile refreshes /api/me, which every page reads. */
+export const useUpdateProfile = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: authApi.updateProfile,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY }),
+  });
+};
+
 export const useSignup = () => useMutation({ mutationFn: authApi.signup });
 export const useResendVerification = () => useMutation({ mutationFn: authApi.resendVerification });
 export const useForgotPassword = () => useMutation({ mutationFn: authApi.forgotPassword });

@@ -1,6 +1,7 @@
-import type { MeResponse } from '@a-ai/shared-types';
+import type { AuthUserResponse, MeResponse } from '@a-ai/shared-types';
+import { profileUpdateSchema } from '@a-ai/validation';
 import type { FastifyInstance } from 'fastify';
-import { resolveIdentity } from '../../plugins/auth.js';
+import { requireUser, resolveIdentity } from '../../plugins/auth.js';
 import { toAuthUser } from '../auth/auth.service.js';
 
 export async function meRoutes(app: FastifyInstance): Promise<void> {
@@ -28,5 +29,13 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
         attachments: attachments.limits('guest'),
       },
     };
+  });
+
+  /** Update the signed-in account's profile. Blank fields clear themselves. */
+  app.patch('/api/me/profile', async (request, reply): Promise<AuthUserResponse> => {
+    const identity = await requireUser(request, reply);
+    const input = profileUpdateSchema.parse(request.body ?? {});
+    const user = await app.services.profile.update(identity.user.id, input);
+    return { user: toAuthUser(user) };
   });
 }

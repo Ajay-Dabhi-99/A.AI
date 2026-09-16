@@ -112,7 +112,7 @@ describe('login page', () => {
     fill('Password', 'a long enough password');
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 
-    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Your profile' })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/settings');
     expect(callsTo(api, 'POST /api/auth/login')[0]?.credentials).toBe('include');
   });
@@ -267,7 +267,7 @@ describe('protected settings', () => {
     expect(router.state.location.search).toBe(`?next=${encodeURIComponent('/settings')}`);
   });
 
-  it('shows the account, quota and a working sign out for users', async () => {
+  it('shows the profile, quota and a working sign out for users', async () => {
     const api = mockApi({
       ...baseRoutes,
       '/api/me': () => jsonResponse(userMe),
@@ -275,10 +275,12 @@ describe('protected settings', () => {
     });
     const { router } = renderApp('/settings');
 
-    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Your profile' })).toBeInTheDocument();
     expect(screen.getByText('person@example.com')).toBeInTheDocument();
     expect(screen.getByText('Verified')).toBeInTheDocument();
-    expect(screen.getByText('3 / 200')).toBeInTheDocument();
+    expect(
+      screen.getByRole('progressbar', { name: 'Daily message allowance used' }),
+    ).toHaveAttribute('aria-valuenow', '3');
     expect(
       screen.getByRole('link', { name: /account settings for person@example.com/i }),
     ).toBeInTheDocument();

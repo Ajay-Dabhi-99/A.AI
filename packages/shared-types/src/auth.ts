@@ -9,6 +9,11 @@ export type AuthUser = {
   id: string;
   email: string;
   emailVerified: boolean;
+  /** Profile details, null until the account sets them (MODEL-060). */
+  firstName: string | null;
+  lastName: string | null;
+  /** Free-form international number; never used for authentication. */
+  phone: string | null;
   /** Admins can manage the model registry (Phase 3). */
   role: UserRole;
   createdAt: string;
