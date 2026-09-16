@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { PASSWORD_MIN_LENGTH, signupRequestSchema } from '@a-ai/validation';
+import { NAME_MAX_LENGTH, PASSWORD_MIN_LENGTH, signupRequestSchema } from '@a-ai/validation';
 import { MailCheck } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -21,7 +21,7 @@ export function SignupPage() {
 
   const form = useForm({
     resolver: zodResolver(signupRequestSchema),
-    defaultValues: { email: '', password: '' },
+    defaultValues: { firstName: '', lastName: '', email: '', password: '' },
   });
   const { errors, isSubmitting } = form.formState;
 
@@ -72,7 +72,9 @@ export function SignupPage() {
       resend.reset();
       setSentTo(values.email);
     } catch (error) {
-      setFormError(applyServerError(error, form.setError, ['email', 'password']));
+      setFormError(
+        applyServerError(error, form.setError, ['firstName', 'lastName', 'email', 'password']),
+      );
     }
   });
 
@@ -91,6 +93,26 @@ export function SignupPage() {
     >
       <form onSubmit={onSubmit} noValidate className="space-y-4">
         {formError && <Alert tone="danger" title={formError} />}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField
+            id="signup-first-name"
+            label="First name"
+            autoComplete="given-name"
+            maxLength={NAME_MAX_LENGTH}
+            required
+            error={errors.firstName?.message}
+            {...form.register('firstName')}
+          />
+          <TextField
+            id="signup-last-name"
+            label="Last name"
+            autoComplete="family-name"
+            maxLength={NAME_MAX_LENGTH}
+            required
+            error={errors.lastName?.message}
+            {...form.register('lastName')}
+          />
+        </div>
         <TextField
           id="signup-email"
           label="Email"

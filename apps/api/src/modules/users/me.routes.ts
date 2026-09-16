@@ -31,7 +31,7 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
-  /** Update the signed-in account's profile. Blank fields clear themselves. */
+  /** Update the signed-in account's profile. Names are required; a blank phone clears it. */
   app.patch('/api/me/profile', async (request, reply): Promise<AuthUserResponse> => {
     const identity = await requireUser(request, reply);
     const input = profileUpdateSchema.parse(request.body ?? {});

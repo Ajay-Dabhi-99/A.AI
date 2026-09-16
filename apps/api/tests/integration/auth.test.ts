@@ -17,6 +17,7 @@ import {
 const SESSION = 'a_ai_session';
 const email = 'person@example.com';
 const password = 'a long enough password';
+const names = { firstName: 'Ada', lastName: 'Lovelace' };
 
 let ctx: AuthTestContext | undefined;
 
@@ -45,7 +46,7 @@ function me(app: FastifyInstance, cookies: Record<string, string> = {}) {
 }
 
 async function signupAndVerify(context: AuthTestContext): Promise<string> {
-  await post(context.app, '/api/auth/signup', { email, password });
+  await post(context.app, '/api/auth/signup', { ...names, email, password });
   const verified = await post(context.app, '/api/auth/verify-email', {
     token: context.emails.tokenFor(email),
   });
@@ -59,7 +60,11 @@ describe('signup → verify → session', () => {
     ctx = await buildAuthTestApp();
     const { app, emails } = ctx;
 
-    const signup = await post(app, '/api/auth/signup', { email: ' Person@Example.com ', password });
+    const signup = await post(app, '/api/auth/signup', {
+      ...names,
+      email: ' Person@Example.com ',
+      password,
+    });
     expect(signup.statusCode).toBe(202);
     expect(acceptedResponseSchema.parse(signup.json())).toEqual({ status: 'accepted' });
     expect(cookieValue(signup, SESSION)).toBeUndefined();
@@ -73,6 +78,8 @@ describe('signup → verify → session', () => {
     expect(authUserResponseSchema.parse(verified.json()).user).toMatchObject({
       email,
       emailVerified: true,
+      firstName: 'Ada',
+      lastName: 'Lovelace',
     });
 
     const cookie = setCookieFor(verified, SESSION);
@@ -86,7 +93,7 @@ describe('signup → verify → session', () => {
 
   it('rejects a verification link that was already used', async () => {
     ctx = await buildAuthTestApp();
-    await post(ctx.app, '/api/auth/signup', { email, password });
+    await post(ctx.app, '/api/auth/signup', { ...names, email, password });
     const token = ctx.emails.tokenFor(email);
     await post(ctx.app, '/api/auth/verify-email', { token });
 
@@ -97,11 +104,20 @@ describe('signup → verify → session', () => {
 
   it('returns field-level validation details', async () => {
     ctx = await buildAuthTestApp();
-    const response = await post(ctx.app, '/api/auth/signup', { email: 'nope', password: 'short' });
+    const response = await post(ctx.app, '/api/auth/signup', {
+      firstName: ' ',
+      email: 'nope',
+      password: 'short',
+    });
     expect(response.statusCode).toBe(400);
     const body = apiErrorBodySchema.parse(response.json());
     expect(body.error.code).toBe('VALIDATION_ERROR');
-    expect(body.error.details?.map((issue) => issue.path).sort()).toEqual(['email', 'password']);
+    expect(body.error.details?.map((issue) => issue.path).sort()).toEqual([
+      'email',
+      'firstName',
+      'lastName',
+      'password',
+    ]);
   });
 
   it('answers signup identically whether or not the email is registered', async () => {
@@ -109,10 +125,15 @@ describe('signup → verify → session', () => {
     await signupAndVerify(ctx);
 
     const again = await post(ctx.app, '/api/auth/signup', {
+      ...names,
       email,
       password: 'an attacker password',
     });
-    const fresh = await post(ctx.app, '/api/auth/signup', { email: 'new@example.com', password });
+    const fresh = await post(ctx.app, '/api/auth/signup', {
+      ...names,
+      email: 'new@example.com',
+      password,
+    });
 
     expect(again.statusCode).toBe(fresh.statusCode);
     expect(again.body).toBe(fresh.body);

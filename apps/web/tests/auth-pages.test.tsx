@@ -19,6 +19,11 @@ function fill(label: string, value: string) {
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
 }
 
+function fillNames() {
+  fill('First name', 'Ada');
+  fill('Last name', 'Lovelace');
+}
+
 /** /api/me reports a guest until a sign-in call succeeds, then the user. */
 function signInFlowRoutes(extra: Record<string, (init: RequestInit | undefined) => Response>) {
   let signedIn = false;
@@ -120,18 +125,26 @@ describe('login page', () => {
 
 describe('signup page', () => {
   it('shows the check-your-inbox step after signing up', async () => {
-    mockApi({
+    const api = mockApi({
       ...baseRoutes,
       'POST /api/auth/signup': () => jsonResponse({ status: 'accepted' }, 202),
     });
     renderApp('/signup');
 
+    fillNames();
     fill('Email', 'new@example.com');
     fill('Password', 'a long enough password');
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
 
     expect(await screen.findByRole('heading', { name: 'Check your inbox' })).toBeInTheDocument();
     expect(screen.getByText('new@example.com')).toBeInTheDocument();
+    const [request] = callsTo(api, 'POST /api/auth/signup');
+    expect(JSON.parse(String(request?.body))).toEqual({
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      email: 'new@example.com',
+      password: 'a long enough password',
+    });
   });
 
   it('puts server validation messages on the matching field', async () => {
@@ -144,6 +157,7 @@ describe('signup page', () => {
     });
     renderApp('/signup');
 
+    fillNames();
     fill('Email', 'new@example.com');
     fill('Password', 'a long enough password');
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
@@ -153,9 +167,22 @@ describe('signup page', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
+  it('requires a first and last name before sending anything', async () => {
+    const api = mockApi(baseRoutes);
+    renderApp('/signup');
+    fill('Email', 'new@example.com');
+    fill('Password', 'a long enough password');
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+    expect(await screen.findByText('Enter your first name')).toBeInTheDocument();
+    expect(screen.getByText('Enter your last name')).toBeInTheDocument();
+    expect(screen.getByLabelText('First name')).toHaveAttribute('aria-invalid', 'true');
+    expect(callsTo(api, 'POST /api/auth/signup')).toHaveLength(0);
+  });
+
   it('enforces the password length on the client', async () => {
     const api = mockApi(baseRoutes);
     renderApp('/signup');
+    fillNames();
     fill('Email', 'new@example.com');
     fill('Password', 'short');
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));

@@ -32,15 +32,20 @@ export const passwordSchema = z
 export const NAME_MAX_LENGTH = 60;
 export const PHONE_MAX_LENGTH = 24;
 
-/** A blank value is allowed everywhere: every profile field is optional. */
-const NAME_PATTERN = /^([\p{L}\p{M}][\p{L}\p{M}'’ .-]*)?$/u;
+const NAME_PATTERN = /^[\p{L}\p{M}][\p{L}\p{M}'’ .-]*$/u;
 const PHONE_PATTERN = /^(\+?[\d ()-]+)?$/;
 
-const nameField = z
-  .string()
-  .trim()
-  .max(NAME_MAX_LENGTH, `Use at most ${NAME_MAX_LENGTH} characters`)
-  .regex(NAME_PATTERN, 'Use letters, spaces, hyphens or apostrophes');
+/** First and last name: required at signup and cannot be cleared afterwards. */
+const nameField = (label: 'first name' | 'last name') =>
+  z
+    .string({ error: `Enter your ${label}` })
+    .trim()
+    .min(1, { error: `Enter your ${label}`, abort: true })
+    .max(NAME_MAX_LENGTH, `Use at most ${NAME_MAX_LENGTH} characters`)
+    .regex(NAME_PATTERN, 'Use letters, spaces, hyphens or apostrophes');
+
+const firstNameField = nameField('first name');
+const lastNameField = nameField('last name');
 
 const phoneField = z
   .string()
@@ -52,16 +57,16 @@ const phoneField = z
     'Enter at least 7 digits, including the country code',
   );
 
-/** The shape a form holds: plain strings, where blank means "not set". */
+/** The shape a form holds: plain strings, where a blank phone means "not set". */
 export const profileFormSchema = z.object({
-  firstName: nameField,
-  lastName: nameField,
+  firstName: firstNameField,
+  lastName: lastNameField,
   phone: phoneField,
 });
 
 /**
- * The request the API accepts. A field may be blank, null or missing; each of
- * those clears it, so one request replaces the whole profile.
+ * The request the API accepts; one request replaces the whole profile. Names
+ * are required. The phone may be blank, null or missing, each of which clears it.
  */
 const optionalField = <Field extends z.ZodType<string, unknown>>(field: Field) =>
   field
@@ -69,8 +74,8 @@ const optionalField = <Field extends z.ZodType<string, unknown>>(field: Field) =
     .transform((value) => (value === undefined || value === null || value === '' ? null : value));
 
 export const profileUpdateSchema = z.object({
-  firstName: optionalField(nameField),
-  lastName: optionalField(nameField),
+  firstName: firstNameField,
+  lastName: lastNameField,
   phone: optionalField(phoneField),
 });
 
@@ -80,7 +85,12 @@ export const linkTokenSchema = z
   .regex(/^[A-Za-z0-9_-]{32,128}$/, 'This link is invalid');
 
 export const signupRequestSchema = z
-  .object({ email: emailSchema, password: passwordSchema })
+  .object({
+    firstName: firstNameField,
+    lastName: lastNameField,
+    email: emailSchema,
+    password: passwordSchema,
+  })
   .refine((data) => data.password.trim().toLowerCase() !== data.email, {
     path: ['password'],
     message: 'Your password must not be your email address',
@@ -111,11 +121,11 @@ export type ResetPasswordRequest = z.infer<typeof resetPasswordRequestSchema>;
 export type ProfileUpdateRequest = z.infer<typeof profileUpdateSchema>;
 export type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
-/** Blank fields become null, which clears them. */
+/** A blank phone becomes null, which clears it. */
 export function toProfileUpdate(values: ProfileFormValues): ProfileUpdateRequest {
   return {
-    firstName: values.firstName || null,
-    lastName: values.lastName || null,
+    firstName: values.firstName,
+    lastName: values.lastName,
     phone: values.phone || null,
   };
 }

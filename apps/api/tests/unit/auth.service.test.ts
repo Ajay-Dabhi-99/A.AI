@@ -15,6 +15,7 @@ const APP_URL = 'https://app.a-ai.test';
 const meta = { userAgent: 'vitest', ipHash: 'hashed-ip' };
 const email = 'person@example.com';
 const password = 'a long enough password';
+const names = { firstName: 'Ada', lastName: 'Lovelace' };
 
 function setup() {
   const repositories = createMemoryRepositories();
@@ -39,7 +40,7 @@ function setup() {
 type Context = ReturnType<typeof setup>;
 
 async function verifiedAccount(ctx: Context) {
-  await ctx.auth.signup({ email, password });
+  await ctx.auth.signup({ ...names, email, password });
   return ctx.auth.verifyEmail(ctx.emails.tokenFor(email), meta);
 }
 
@@ -55,9 +56,10 @@ async function appError(promise: Promise<unknown>): Promise<AppError> {
 describe('signup', () => {
   it('creates an unverified account and emails a verification link', async () => {
     const ctx = setup();
-    await ctx.auth.signup({ email, password });
+    await ctx.auth.signup({ ...names, email, password });
 
     const user = ctx.repositories.data.users[0];
+    expect(user).toMatchObject(names);
     expect(user).toMatchObject({
       email,
       emailVerifiedAt: null,
@@ -76,7 +78,7 @@ describe('signup', () => {
     await verifiedAccount(ctx);
     const before = structuredClone(ctx.repositories.data.users[0]);
 
-    await ctx.auth.signup({ email, password: 'someone else trying a password' });
+    await ctx.auth.signup({ ...names, email, password: 'someone else trying a password' });
 
     expect(ctx.repositories.data.users).toHaveLength(1);
     expect(ctx.repositories.data.users[0]).toEqual(before);
@@ -85,13 +87,23 @@ describe('signup', () => {
 
   it('for an existing unverified account: the latest signup wins and older links stop working', async () => {
     const ctx = setup();
-    await ctx.auth.signup({ email, password });
+    await ctx.auth.signup({ ...names, email, password });
     const firstToken = ctx.emails.tokenFor(email);
 
-    await ctx.auth.signup({ email, password: 'the newer password here' });
+    await ctx.auth.signup({
+      firstName: 'Grace',
+      lastName: 'Hopper',
+      email,
+      password: 'the newer password here',
+    });
     const secondToken = ctx.emails.tokenFor(email);
 
-    expect(ctx.repositories.data.users[0]?.passwordHash).toBe('fake-hash:the newer password here');
+    expect(ctx.repositories.data.users).toHaveLength(1);
+    expect(ctx.repositories.data.users[0]).toMatchObject({
+      passwordHash: 'fake-hash:the newer password here',
+      firstName: 'Grace',
+      lastName: 'Hopper',
+    });
     expect((await appError(ctx.auth.verifyEmail(firstToken, meta))).code).toBe('TOKEN_INVALID');
     await expect(ctx.auth.verifyEmail(secondToken, meta)).resolves.toBeDefined();
   });
@@ -99,7 +111,10 @@ describe('signup', () => {
   it('handles two simultaneous signups for the same email without failing either', async () => {
     const ctx = setup();
     await expect(
-      Promise.all([ctx.auth.signup({ email, password }), ctx.auth.signup({ email, password })]),
+      Promise.all([
+        ctx.auth.signup({ ...names, email, password }),
+        ctx.auth.signup({ ...names, email, password }),
+      ]),
     ).resolves.toBeDefined();
     expect(ctx.repositories.data.users).toHaveLength(1);
   });
@@ -107,7 +122,7 @@ describe('signup', () => {
   it('does not fail when the email cannot be delivered, and logs it', async () => {
     const ctx = setup();
     ctx.emails.failNext = true;
-    await expect(ctx.auth.signup({ email, password })).resolves.toBeUndefined();
+    await expect(ctx.auth.signup({ ...names, email, password })).resolves.toBeUndefined();
     expect(ctx.logger.error).toHaveBeenCalledOnce();
   });
 });
@@ -115,7 +130,7 @@ describe('signup', () => {
 describe('verifyEmail', () => {
   it('verifies the account, signs the user in, and works only once', async () => {
     const ctx = setup();
-    await ctx.auth.signup({ email, password });
+    await ctx.auth.signup({ ...names, email, password });
     const token = ctx.emails.tokenFor(email);
 
     const signedIn = await ctx.auth.verifyEmail(token, meta);
@@ -127,7 +142,7 @@ describe('verifyEmail', () => {
 
   it('rejects a link older than 24 hours', async () => {
     const ctx = setup();
-    await ctx.auth.signup({ email, password });
+    await ctx.auth.signup({ ...names, email, password });
     ctx.clock.advance(VERIFICATION_TOKEN_TTL_MS);
     const error = await appError(ctx.auth.verifyEmail(ctx.emails.tokenFor(email), meta));
     expect(error).toMatchObject({ code: 'TOKEN_INVALID', statusCode: 400 });
@@ -156,7 +171,7 @@ describe('login', () => {
 
   it('refuses an unverified account only after the password is correct', async () => {
     const ctx = setup();
-    await ctx.auth.signup({ email, password });
+    await ctx.auth.signup({ ...names, email, password });
     expect(
       (await appError(ctx.auth.login({ email, password: 'wrong password!' }, meta))).code,
     ).toBe('INVALID_CREDENTIALS');
@@ -169,7 +184,7 @@ describe('login', () => {
 describe('resendVerification', () => {
   it('sends a fresh link to unverified accounts and invalidates the previous one', async () => {
     const ctx = setup();
-    await ctx.auth.signup({ email, password });
+    await ctx.auth.signup({ ...names, email, password });
     const oldToken = ctx.emails.tokenFor(email);
 
     await ctx.auth.resendVerification(email);
@@ -244,7 +259,7 @@ describe('password reset', () => {
 
   it('verifies an unverified account, since the link proves inbox access', async () => {
     const ctx = setup();
-    await ctx.auth.signup({ email, password });
+    await ctx.auth.signup({ ...names, email, password });
     await ctx.auth.forgotPassword(email);
     const result = await ctx.auth.resetPassword(
       { token: ctx.emails.tokenFor(email), password: 'brand new password 42' },

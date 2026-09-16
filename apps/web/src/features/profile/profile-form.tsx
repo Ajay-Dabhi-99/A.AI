@@ -21,7 +21,7 @@ const valuesFor = (user: AuthUser) => ({
   phone: user.phone ?? '',
 });
 
-/** Name and phone, all optional: clearing a field removes it. */
+/** Name (required) and phone (optional: clearing it removes it). */
 export function ProfileForm({ user }: { user: AuthUser }) {
   const update = useUpdateProfile();
   const [saved, setSaved] = useState(false);
@@ -68,7 +68,7 @@ export function ProfileForm({ user }: { user: AuthUser }) {
             Personal information
           </h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            How your name appears in A.ai. Every field is optional.
+            How your name appears in A.ai. Your phone number is optional.
           </p>
         </div>
       </div>
@@ -81,6 +81,7 @@ export function ProfileForm({ user }: { user: AuthUser }) {
             id="profile-first-name"
             label="First name"
             autoComplete="given-name"
+            required
             maxLength={NAME_MAX_LENGTH}
             error={errors.firstName?.message}
             {...form.register('firstName')}
@@ -89,6 +90,7 @@ export function ProfileForm({ user }: { user: AuthUser }) {
             id="profile-last-name"
             label="Last name"
             autoComplete="family-name"
+            required
             maxLength={NAME_MAX_LENGTH}
             error={errors.lastName?.message}
             {...form.register('lastName')}

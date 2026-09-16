@@ -67,6 +67,7 @@ export class AuthService {
 
   async signup(input: SignupRequest): Promise<void> {
     const { repositories, hasher, appUrl } = this.#deps;
+    const { firstName, lastName } = input;
     // Hash first on every path, so response time does not depend on whether the email exists.
     const passwordHash = await hasher.hash(input.password);
     const existing = await repositories.users.findByEmail(input.email);
@@ -84,12 +85,21 @@ export class AuthService {
 
     let user: UserRecord;
     if (existing) {
-      // Unverified account: the latest signup's password wins and older links stop working.
+      // Unverified account: the latest signup's name and password win and older links stop working.
       await repositories.users.updatePasswordHash(existing.id, passwordHash);
-      user = existing;
+      user = await repositories.users.updateProfile(existing.id, {
+        firstName,
+        lastName,
+        phone: existing.phone,
+      });
     } else {
       try {
-        user = await repositories.users.create({ email: input.email, passwordHash });
+        user = await repositories.users.create({
+          email: input.email,
+          passwordHash,
+          firstName,
+          lastName,
+        });
       } catch (error) {
         if (!(error instanceof DuplicateEmailError)) throw error;
         // A concurrent signup won the race; treat it like an existing unverified account.

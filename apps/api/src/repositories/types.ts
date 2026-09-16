@@ -61,7 +61,12 @@ export interface UserRepository {
   findByEmail(email: string): Promise<UserRecord | null>;
   findById(id: string): Promise<UserRecord | null>;
   /** @throws DuplicateEmailError */
-  create(data: { email: string; passwordHash: string }): Promise<UserRecord>;
+  create(data: {
+    email: string;
+    passwordHash: string;
+    firstName?: string | null;
+    lastName?: string | null;
+  }): Promise<UserRecord>;
   updatePasswordHash(id: string, passwordHash: string): Promise<void>;
   /** Replaces every profile field and returns the updated user. */
   updateProfile(id: string, profile: ProfileFields): Promise<UserRecord>;

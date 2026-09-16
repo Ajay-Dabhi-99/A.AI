@@ -77,6 +77,17 @@ describe('profile page', () => {
     expect(callsTo(api, 'PATCH /api/me/profile')).toHaveLength(0);
   });
 
+  it('does not let a name be cleared', async () => {
+    const api = mockApi({ ...baseRoutes, '/api/me': () => jsonResponse(namedMe) });
+    renderApp('/settings');
+
+    fireEvent.change(await screen.findByLabelText('Last name'), { target: { value: '  ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(await screen.findByText('Enter your last name')).toBeInTheDocument();
+    expect(callsTo(api, 'PATCH /api/me/profile')).toHaveLength(0);
+  });
+
   it('shows a server error when saving fails', async () => {
     mockApi({
       ...baseRoutes,

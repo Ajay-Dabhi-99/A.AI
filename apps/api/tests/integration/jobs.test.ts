@@ -53,7 +53,7 @@ async function signIn(context: Context, email = 'person@example.com'): Promise<C
     method: 'POST',
     url: '/api/auth/signup',
     headers: { origin: WEB_ORIGIN },
-    payload: { email, password: 'a long enough password' },
+    payload: { firstName: 'Ada', lastName: 'Lovelace', email, password: 'a long enough password' },
   });
   const verified = await context.app.inject({
     method: 'POST',

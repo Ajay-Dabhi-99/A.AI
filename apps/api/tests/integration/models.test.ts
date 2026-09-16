@@ -65,7 +65,7 @@ async function signIn(context: ChatTestContext, email: string, options: { admin?
     method: 'POST',
     url: '/api/auth/signup',
     headers: { origin: WEB_ORIGIN },
-    payload: { email, password: 'a long enough password' },
+    payload: { firstName: 'Ada', lastName: 'Lovelace', email, password: 'a long enough password' },
   });
   if (options.admin) await context.repositories.users.setRoleByEmail(email, 'ADMIN');
   const verified = await app.inject({

@@ -11,6 +11,7 @@ import {
 const SESSION = 'a_ai_session';
 const email = 'person@example.com';
 const password = 'a long enough password';
+const names = { firstName: 'Ada', lastName: 'Lovelace' };
 
 let ctx: AuthTestContext | undefined;
 
@@ -36,7 +37,7 @@ async function signedIn(): Promise<{ app: FastifyInstance; cookies: Record<strin
     method: 'POST',
     url: '/api/auth/signup',
     headers: { origin: WEB_ORIGIN },
-    payload: { email, password },
+    payload: { firstName: 'Grace', lastName: 'Hopper', email, password },
   });
   const verified = await app.inject({
     method: 'POST',
@@ -50,6 +51,16 @@ async function signedIn(): Promise<{ app: FastifyInstance; cookies: Record<strin
 }
 
 describe('PATCH /api/me/profile', () => {
+  it('starts with the name given at signup', async () => {
+    const { app, cookies } = await signedIn();
+
+    const identity = meResponseSchema.parse((await app.inject({ url: '/api/me', cookies })).json());
+    expect(identity.identity).toMatchObject({
+      kind: 'user',
+      user: { firstName: 'Grace', lastName: 'Hopper', phone: null },
+    });
+  });
+
   it('saves the profile and returns it from /api/me', async () => {
     const { app, cookies } = await signedIn();
 
@@ -71,30 +82,35 @@ describe('PATCH /api/me/profile', () => {
     expect(identity.identity).toMatchObject({ kind: 'user', user: { firstName: 'Ada' } });
   });
 
-  it('clears a field sent blank', async () => {
+  it('clears a phone sent blank', async () => {
     const { app, cookies } = await signedIn();
-    await patchProfile(
-      app,
-      { firstName: 'Ada', lastName: 'Lovelace', phone: '9876543210' },
-      cookies,
-    );
+    await patchProfile(app, { ...names, phone: '9876543210' }, cookies);
 
-    const response = await patchProfile(
-      app,
-      { firstName: 'Ada', lastName: '', phone: '' },
-      cookies,
-    );
+    const response = await patchProfile(app, { ...names, phone: '' }, cookies);
 
     const { user } = authUserResponseSchema.parse(response.json());
-    expect(user.firstName).toBe('Ada');
-    expect(user.lastName).toBeNull();
-    expect(user.phone).toBeNull();
+    expect(user).toMatchObject({ ...names, phone: null });
+  });
+
+  it('refuses to clear a name and keeps the stored one', async () => {
+    const { app, cookies } = await signedIn();
+
+    const response = await patchProfile(app, { firstName: '', lastName: null }, cookies);
+
+    expect(response.statusCode).toBe(400);
+    const body = apiErrorBodySchema.parse(response.json());
+    expect(body.error.details?.map((issue) => issue.path).sort()).toEqual([
+      'firstName',
+      'lastName',
+    ]);
+    const identity = meResponseSchema.parse((await app.inject({ url: '/api/me', cookies })).json());
+    expect(identity.identity).toMatchObject({ kind: 'user', user: { firstName: 'Grace' } });
   });
 
   it('rejects a phone number that is not a number, naming the field', async () => {
     const { app, cookies } = await signedIn();
 
-    const response = await patchProfile(app, { phone: 'call me maybe' }, cookies);
+    const response = await patchProfile(app, { ...names, phone: 'call me maybe' }, cookies);
 
     expect(response.statusCode).toBe(400);
     const body = apiErrorBodySchema.parse(response.json());
@@ -104,9 +120,9 @@ describe('PATCH /api/me/profile', () => {
 
   it('rejects a name with digits and keeps the stored profile unchanged', async () => {
     const { app, cookies } = await signedIn();
-    await patchProfile(app, { firstName: 'Ada' }, cookies);
+    await patchProfile(app, names, cookies);
 
-    const rejected = await patchProfile(app, { firstName: 'Ada2' }, cookies);
+    const rejected = await patchProfile(app, { ...names, firstName: 'Ada2' }, cookies);
     expect(rejected.statusCode).toBe(400);
 
     const identity = meResponseSchema.parse((await app.inject({ url: '/api/me', cookies })).json());
@@ -116,7 +132,7 @@ describe('PATCH /api/me/profile', () => {
   it('requires a signed-in session', async () => {
     ctx = await buildAuthTestApp();
 
-    const response = await patchProfile(ctx.app, { firstName: 'Ada' });
+    const response = await patchProfile(ctx.app, names);
 
     expect(response.statusCode).toBe(401);
     expect(apiErrorBodySchema.parse(response.json()).error.code).toBe('AUTH_REQUIRED');

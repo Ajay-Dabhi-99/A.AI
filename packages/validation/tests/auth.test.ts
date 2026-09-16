@@ -12,10 +12,12 @@ import {
 } from '../src/index.js';
 
 const token = 'a'.repeat(43);
+const names = { firstName: 'Ada', lastName: 'Lovelace' };
 
 describe('signupRequestSchema', () => {
   it('normalizes the email to trimmed lowercase', () => {
     const parsed = signupRequestSchema.parse({
+      ...names,
       email: '  Ajay@Example.COM ',
       password: 'correct horse battery',
     });
@@ -23,21 +25,54 @@ describe('signupRequestSchema', () => {
   });
 
   it('enforces password length bounds', () => {
-    const short = signupRequestSchema.safeParse({ email: 'a@b.co', password: 'short' });
+    const short = signupRequestSchema.safeParse({ ...names, email: 'a@b.co', password: 'short' });
     expect(short.success).toBe(false);
     expect(short.error?.issues[0]?.message).toBe('Use at least 10 characters');
 
-    const long = signupRequestSchema.safeParse({ email: 'a@b.co', password: 'x'.repeat(129) });
+    const long = signupRequestSchema.safeParse({
+      ...names,
+      email: 'a@b.co',
+      password: 'x'.repeat(129),
+    });
     expect(long.success).toBe(false);
   });
 
   it('rejects a password equal to the email', () => {
     const result = signupRequestSchema.safeParse({
+      ...names,
       email: 'someone@example.com',
       password: 'Someone@Example.com',
     });
     expect(result.success).toBe(false);
     expect(result.error?.issues[0]?.path).toEqual(['password']);
+  });
+
+  it('requires a first and last name, and trims them', () => {
+    const base = { email: 'a@b.co', password: 'correct horse battery' };
+    expect(
+      signupRequestSchema.parse({ ...base, firstName: ' Ada ', lastName: ' Lovelace ' }),
+    ).toMatchObject(names);
+
+    const missing = signupRequestSchema.safeParse(base);
+    expect(missing.error?.issues.map((issue) => [issue.path[0], issue.message])).toEqual([
+      ['firstName', 'Enter your first name'],
+      ['lastName', 'Enter your last name'],
+    ]);
+
+    const blank = signupRequestSchema.safeParse({
+      ...base,
+      firstName: '   ',
+      lastName: 'Lovelace',
+    });
+    expect(blank.error?.issues).toHaveLength(1);
+    expect(blank.error?.issues[0]?.message).toBe('Enter your first name');
+
+    const digits = signupRequestSchema.safeParse({
+      ...base,
+      firstName: 'Ada',
+      lastName: 'L0velace',
+    });
+    expect(digits.error?.issues[0]?.message).toBe('Use letters, spaces, hyphens or apostrophes');
   });
 
   it('rejects malformed emails', () => {
@@ -124,35 +159,46 @@ describe('profile', () => {
     });
   });
 
-  it('treats blank, null and missing fields as "not set"', () => {
-    expect(profileUpdateSchema.parse({ firstName: '   ', lastName: null })).toEqual({
-      firstName: null,
-      lastName: null,
-      phone: null,
-    });
+  it('treats a blank, null or missing phone as "not set"', () => {
+    expect(profileUpdateSchema.parse(names)).toEqual({ ...names, phone: null });
+    expect(profileUpdateSchema.parse({ ...names, phone: '  ' })).toEqual({ ...names, phone: null });
+    expect(profileUpdateSchema.parse({ ...names, phone: null })).toEqual({ ...names, phone: null });
+  });
+
+  it('does not let a name be cleared', () => {
+    const blank = profileUpdateSchema.safeParse({ firstName: '   ', lastName: null });
+    expect(blank.error?.issues.map((issue) => [issue.path[0], issue.message])).toEqual([
+      ['firstName', 'Enter your first name'],
+      ['lastName', 'Enter your last name'],
+    ]);
   });
 
   it('rejects digits in a name and a phone that is not a number', () => {
-    const name = profileUpdateSchema.safeParse({ firstName: 'Ada2' });
+    const name = profileUpdateSchema.safeParse({ ...names, firstName: 'Ada2' });
     expect(name.success).toBe(false);
     expect(name.error?.issues[0]?.message).toBe('Use letters, spaces, hyphens or apostrophes');
 
-    const phone = profileUpdateSchema.safeParse({ phone: 'call me' });
+    const phone = profileUpdateSchema.safeParse({ ...names, phone: 'call me' });
     expect(phone.error?.issues[0]?.message).toBe('Use digits, and + ( ) - if you need them');
 
-    const short = profileUpdateSchema.safeParse({ phone: '12345' });
+    const short = profileUpdateSchema.safeParse({ ...names, phone: '12345' });
     expect(short.error?.issues[0]?.message).toBe(
       'Enter at least 7 digits, including the country code',
     );
   });
 
   it('rejects names longer than the column allows', () => {
-    expect(profileUpdateSchema.safeParse({ firstName: 'a'.repeat(61) }).success).toBe(false);
-    expect(profileUpdateSchema.safeParse({ firstName: 'a'.repeat(60) }).success).toBe(true);
+    expect(profileUpdateSchema.safeParse({ ...names, firstName: 'a'.repeat(61) }).success).toBe(
+      false,
+    );
+    expect(profileUpdateSchema.safeParse({ ...names, firstName: 'a'.repeat(60) }).success).toBe(
+      true,
+    );
   });
 
-  it('lets a form hold blanks and converts them to a request', () => {
-    const values = profileFormSchema.parse({ firstName: 'Ada', lastName: '', phone: '' });
-    expect(toProfileUpdate(values)).toEqual({ firstName: 'Ada', lastName: null, phone: null });
+  it('lets a form hold a blank phone and converts it to a request', () => {
+    const values = profileFormSchema.parse({ ...names, phone: '' });
+    expect(toProfileUpdate(values)).toEqual({ ...names, phone: null });
+    expect(profileFormSchema.safeParse({ ...names, lastName: '', phone: '' }).success).toBe(false);
   });
 });

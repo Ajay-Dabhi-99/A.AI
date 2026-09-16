@@ -28,7 +28,7 @@ Verified on the local machine; this supersedes the "placeholders" and "migration
 
 | Area                | State                                                                                                                                                                                                                                                  | Evidence                                                                                 |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| Supabase PostgreSQL | Real project in `.env` (`DATABASE_URL`, `DIRECT_URL`); **all 9 migrations applied**                                                                                                                                                                    | `pnpm exec prisma migrate status` → "Database schema is up to date"                      |
+| Supabase PostgreSQL | Real project in `.env` (`DATABASE_URL`, `DIRECT_URL`); **all 10 migrations applied** (including `user_profile`)                                                                                                                                        | `pnpm exec prisma migrate status` → "Database schema is up to date"                      |
 | Upstash Redis       | Real database in `.env` (`REDIS_URL`)                                                                                                                                                                                                                  | `GET /ready` → database up, redis up                                                     |
 | API boot            | Starts and serves `/ready`. `pnpm dev:api` (`tsx watch`) hangs before listening on this Windows machine; `api-run` in `.claude/launch.json` (no watch) works                                                                                           | `.claude/launch.json`                                                                    |
 | Email (Resend)      | `RESEND_API_KEY` set, `EMAIL_FROM` = `onboarding@resend.dev`. Resend answers **403 for any recipient except the Resend account owner** until a domain is verified. Signup, token rotation and resend behave correctly; the 403 is logged, not surfaced | API log `email delivery failed … HTTP 403`; auth integration 10 PASS, unit 22 PASS       |
@@ -55,39 +55,40 @@ Verified on the local machine; this supersedes the "placeholders" and "migration
 
 The blueprint defines MODEL-001 to MODEL-014. IDs from MODEL-015 on are added here as phases are broken down.
 
-| ID        | Task                                           | Phase | Status                           |
-| --------- | ---------------------------------------------- | ----- | -------------------------------- |
-| MODEL-001 | Initialize monorepo                            | P0    | CODE COMPLETE                    |
-| MODEL-002 | Configure React application                    | P0    | CODE COMPLETE                    |
-| MODEL-003 | Configure Fastify API                          | P0    | CODE COMPLETE                    |
-| MODEL-004 | Configure Prisma                               | P0    | CODE COMPLETE                    |
-| MODEL-005 | Supabase database + Upstash Redis connectivity | P0    | VERIFICATION (needs credentials) |
-| MODEL-008 | Create AI provider interface                   | P0    | CODE COMPLETE                    |
-| MODEL-015 | CI workflows, issue and PR templates           | P0    | CODE COMPLETE                    |
-| MODEL-016 | Redis storage interface + rate limiting        | P1    | CODE COMPLETE                    |
-| MODEL-006 | Authentication (schema, API, web)              | P1    | CODE COMPLETE                    |
-| MODEL-007 | Guest sessions, identity resolver, quota       | P1    | CODE COMPLETE                    |
-| MODEL-018 | Email verification + password reset            | P1    | CODE COMPLETE                    |
-| MODEL-060 | Account profile + redesigned profile page      | P1    | CODE COMPLETE (verified locally) |
-| MODEL-017 | Groq provider                                  | P2    | CODE COMPLETE (no real call)     |
-| MODEL-009 | OpenRouter provider                            | P2    | CODE COMPLETE (no real call)     |
-| MODEL-010 | Gemini provider                                | P2    | CODE COMPLETE (no real call)     |
-| MODEL-011 | Streaming chat (API + web)                     | P2    | CODE COMPLETE                    |
-| MODEL-012 | Persist conversations                          | P2    | CODE COMPLETE                    |
-| MODEL-019 | Guest-to-user migration                        | P2    | CODE COMPLETE                    |
-| MODEL-013 | Model registry                                 | P3    | CODE COMPLETE                    |
-| MODEL-020 | Admin role + promote command                   | P3    | CODE COMPLETE                    |
-| MODEL-021 | Models API (catalog + admin PATCH)             | P3    | CODE COMPLETE                    |
-| MODEL-022 | Model prices + estimated run cost              | P3    | CODE COMPLETE                    |
-| MODEL-023 | Web `/models` page + admin controls            | P3    | CODE COMPLETE                    |
-| MODEL-014 | Model comparison (API, persistence, stream)    | P4    | CODE COMPLETE (no real call)     |
-| MODEL-024 | Configurable comparison model limits           | P4    | CODE COMPLETE                    |
-| MODEL-025 | Web `/compare` page                            | P4    | CODE COMPLETE                    |
-| MODEL-026 | Context budget invariant + summary in context  | P5    | CODE COMPLETE                    |
-| MODEL-027 | Calibrated per-model token estimates           | P5    | CODE COMPLETE                    |
-| MODEL-028 | Conversation summaries (hook, background, CAS) | P5    | CODE COMPLETE (no real call)     |
-| MODEL-029 | Usage normalization                            | P5    | CODE COMPLETE                    |
-| MODEL-030 | Context info in the stream and chat UI         | P5    | CODE COMPLETE                    |
+| ID        | Task                                                      | Phase | Status                           |
+| --------- | --------------------------------------------------------- | ----- | -------------------------------- |
+| MODEL-001 | Initialize monorepo                                       | P0    | CODE COMPLETE                    |
+| MODEL-002 | Configure React application                               | P0    | CODE COMPLETE                    |
+| MODEL-003 | Configure Fastify API                                     | P0    | CODE COMPLETE                    |
+| MODEL-004 | Configure Prisma                                          | P0    | CODE COMPLETE                    |
+| MODEL-005 | Supabase database + Upstash Redis connectivity            | P0    | VERIFICATION (needs credentials) |
+| MODEL-008 | Create AI provider interface                              | P0    | CODE COMPLETE                    |
+| MODEL-015 | CI workflows, issue and PR templates                      | P0    | CODE COMPLETE                    |
+| MODEL-016 | Redis storage interface + rate limiting                   | P1    | CODE COMPLETE                    |
+| MODEL-006 | Authentication (schema, API, web)                         | P1    | CODE COMPLETE                    |
+| MODEL-007 | Guest sessions, identity resolver, quota                  | P1    | CODE COMPLETE                    |
+| MODEL-018 | Email verification + password reset                       | P1    | CODE COMPLETE                    |
+| MODEL-060 | Account profile + redesigned profile page                 | P1    | CODE COMPLETE (verified locally) |
+| MODEL-061 | First and last name required at signup and in the profile | P1    | CODE COMPLETE (verified locally) |
+| MODEL-017 | Groq provider                                             | P2    | CODE COMPLETE (no real call)     |
+| MODEL-009 | OpenRouter provider                                       | P2    | CODE COMPLETE (no real call)     |
+| MODEL-010 | Gemini provider                                           | P2    | CODE COMPLETE (no real call)     |
+| MODEL-011 | Streaming chat (API + web)                                | P2    | CODE COMPLETE                    |
+| MODEL-012 | Persist conversations                                     | P2    | CODE COMPLETE                    |
+| MODEL-019 | Guest-to-user migration                                   | P2    | CODE COMPLETE                    |
+| MODEL-013 | Model registry                                            | P3    | CODE COMPLETE                    |
+| MODEL-020 | Admin role + promote command                              | P3    | CODE COMPLETE                    |
+| MODEL-021 | Models API (catalog + admin PATCH)                        | P3    | CODE COMPLETE                    |
+| MODEL-022 | Model prices + estimated run cost                         | P3    | CODE COMPLETE                    |
+| MODEL-023 | Web `/models` page + admin controls                       | P3    | CODE COMPLETE                    |
+| MODEL-014 | Model comparison (API, persistence, stream)               | P4    | CODE COMPLETE (no real call)     |
+| MODEL-024 | Configurable comparison model limits                      | P4    | CODE COMPLETE                    |
+| MODEL-025 | Web `/compare` page                                       | P4    | CODE COMPLETE                    |
+| MODEL-026 | Context budget invariant + summary in context             | P5    | CODE COMPLETE                    |
+| MODEL-027 | Calibrated per-model token estimates                      | P5    | CODE COMPLETE                    |
+| MODEL-028 | Conversation summaries (hook, background, CAS)            | P5    | CODE COMPLETE (no real call)     |
+| MODEL-029 | Usage normalization                                       | P5    | CODE COMPLETE                    |
+| MODEL-030 | Context info in the stream and chat UI                    | P5    | CODE COMPLETE                    |
 
 Phase 6 tasks: MODEL-031 retry/fallback decision table, MODEL-032 fallback order, MODEL-033 provider circuit breaker and health API, MODEL-034 chat attempt loop, MODEL-035 fallback run columns (migration not applied), MODEL-036 web retry/fallback labels and health badges; all CODE COMPLETE, see [phase-6.md](phase-6.md).
 

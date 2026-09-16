@@ -36,15 +36,15 @@ export function createMemoryRepositories(): MemoryRepositories {
         const user = data.users.find((candidate) => candidate.id === id);
         return user ? copy(user) : null;
       },
-      create: async ({ email, passwordHash }) => {
+      create: async ({ email, passwordHash, firstName = null, lastName = null }) => {
         if (data.users.some((user) => user.email === email)) throw new DuplicateEmailError();
         const now = new Date();
         const user: UserRecord = {
           id: randomUUID(),
           email,
           passwordHash,
-          firstName: null,
-          lastName: null,
+          firstName,
+          lastName,
           phone: null,
           role: 'USER',
           emailVerifiedAt: null,

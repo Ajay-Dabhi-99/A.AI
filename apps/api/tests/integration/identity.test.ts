@@ -86,7 +86,12 @@ describe('session identity', () => {
       method: 'POST',
       url: '/api/auth/signup',
       headers: { origin: WEB_ORIGIN },
-      payload: { email: 'person@example.com', password: 'a long enough password' },
+      payload: {
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+        email: 'person@example.com',
+        password: 'a long enough password',
+      },
     });
     const verified = await ctx.app.inject({
       method: 'POST',
