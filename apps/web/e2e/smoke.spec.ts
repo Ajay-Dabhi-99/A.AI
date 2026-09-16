@@ -68,7 +68,7 @@ test('a guest can chat and see the streamed answer', async ({ page }) => {
   });
 
   await page.goto('/chat');
-  await page.getByLabel('Message').fill('Say hello');
+  await page.getByRole('textbox', { name: 'Message' }).fill('Say hello');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByText('Hello from the smoke test.')).toBeVisible();
   await expect(page.getByText('Say hello')).toBeVisible();
@@ -90,11 +90,11 @@ test('the chat explains a rejected message', async ({ page }) => {
     ),
   });
   await page.goto('/chat');
-  await page.getByLabel('Message').fill('One more?');
+  await page.getByRole('textbox', { name: 'Message' }).fill('One more?');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByText('You have used all 20 messages for today.')).toBeVisible();
   // The draft comes back so nothing typed is lost.
-  await expect(page.getByLabel('Message')).toHaveValue('One more?');
+  await expect(page.getByRole('textbox', { name: 'Message' })).toHaveValue('One more?');
 });
 
 test('capabilities that are off say so', async ({ page }) => {
