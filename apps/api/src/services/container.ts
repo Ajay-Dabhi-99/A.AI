@@ -10,6 +10,7 @@ import { AuthService } from '../modules/auth/auth.service.js';
 import { ProfileService } from '../modules/users/profile.service.js';
 import { SessionService } from '../modules/auth/session.service.js';
 import { ChatService } from '../modules/chat/chat.service.js';
+import { SuggestionService } from '../modules/chat/suggestion.service.js';
 import { GuestConversationStore } from '../modules/chat/guest-conversation.store.js';
 import { ComparisonService } from '../modules/comparison/comparison.service.js';
 import { GuestComparisonStore } from '../modules/comparison/guest-comparison.store.js';
@@ -100,6 +101,8 @@ export type AppServices = {
   /** Context budgets, summaries and calibration (Phase 5). */
   context: ContextService;
   chat: ChatService;
+  /** Follow-up questions after an answer (MODEL-067). */
+  suggestions: SuggestionService;
   comparison: ComparisonService;
   /** Saved history, run detail and usage analytics (Phase 7). */
   history: HistoryService;
@@ -298,7 +301,7 @@ export function createServices(input: {
       clock,
       logger,
     }),
-    profile: new ProfileService(repositories),
+    profile: new ProfileService(repositories, clock),
     adapters,
     models,
     health,
@@ -315,6 +318,18 @@ export function createServices(input: {
       fallbackEnabled: env.CHAT_FALLBACK_ENABLED,
       ...(overrides.retryPolicy ? { retryPolicy: overrides.retryPolicy } : {}),
       clock,
+      logger,
+    }),
+    suggestions: new SuggestionService({
+      enabled: env.CHAT_SUGGESTIONS_ENABLED,
+      models,
+      health,
+      rateLimiter,
+      rules: {
+        user: rateLimits.suggestByUser,
+        guest: rateLimits.suggestByGuest,
+        guestIp: rateLimits.suggestByIp,
+      },
       logger,
     }),
     comparison: new ComparisonService({

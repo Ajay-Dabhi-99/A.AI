@@ -165,6 +165,46 @@ describe('chat page as a guest', () => {
     });
   });
 
+  it('suggests follow-up questions under the latest answer and sends one when clicked', async () => {
+    let chats = 0;
+    const api = mockApi(
+      guestRoutes({
+        'POST /api/chat': (init) => {
+          chats += 1;
+          const text = chats === 1 ? 'A database for embeddings.' : 'Pinecone and Qdrant.';
+          return sse([START, ['message.delta', { runId: 'r1', text }], DONE], init);
+        },
+        'POST /api/chat/suggestions': (init) => {
+          const { question } = JSON.parse(String(init?.body)) as { question: string };
+          return jsonResponse({
+            suggestions:
+              question === 'What is a vector database?'
+                ? ['Which ones are popular?', 'How are they indexed?']
+                : [],
+          });
+        },
+      }),
+    );
+    renderApp('/chat');
+    await screen.findByLabelText('Message');
+
+    typeAndSend('What is a vector database?');
+    const followUps = await screen.findByRole('navigation', { name: 'Suggested follow-ups' });
+    expect(JSON.parse(String(callsTo(api, 'POST /api/chat/suggestions')[0]?.body))).toEqual({
+      question: 'What is a vector database?',
+      answer: 'A database for embeddings.',
+    });
+    fireEvent.click(within(followUps).getByRole('button', { name: 'Which ones are popular?' }));
+
+    expect(await screen.findByText('Pinecone and Qdrant.')).toBeInTheDocument();
+    expect(JSON.parse(String(callsTo(api, 'POST /api/chat')[1]?.body))).toMatchObject({
+      message: 'Which ones are popular?',
+    });
+    // Only the latest answer offers follow-ups, and an empty list shows nothing.
+    await waitFor(() => expect(callsTo(api, 'POST /api/chat/suggestions')).toHaveLength(2));
+    expect(screen.queryByRole('navigation', { name: 'Suggested follow-ups' })).toBeNull();
+  });
+
   it('labels a reply that another model answered', async () => {
     mockApi(
       guestRoutes({

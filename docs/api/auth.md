@@ -19,6 +19,7 @@ Both are `HttpOnly`, `SameSite=Lax`, `Path=/`, and `Secure` in production.
 | ------ | ------------------------------- | ------------------------------------------ | ------------------------------------------------- | ---------------------------------------------------------- |
 | GET    | `/api/me`                       | none                                       | `200 MeResponse`, issues a guest cookie if needed | `429`                                                      |
 | PATCH  | `/api/me/profile`               | `{ firstName, lastName, phone }`           | `200 { user }`                                    | `400 VALIDATION_ERROR`, `401 AUTH_REQUIRED`, `429`         |
+| PATCH  | `/api/me/interests`             | `{ interests }`                            | `200 { user }`                                    | `400 VALIDATION_ERROR`, `401 AUTH_REQUIRED`, `429`         |
 | POST   | `/api/auth/signup`              | `{ firstName, lastName, email, password }` | `202 { status: "accepted" }`                      | `400 VALIDATION_ERROR`, `429`                              |
 | POST   | `/api/auth/verify-email`        | `{ token }`                                | `200 { user }` + session cookie                   | `400 TOKEN_INVALID`, `429`                                 |
 | POST   | `/api/auth/resend-verification` | `{ email }`                                | `202 { status: "accepted" }`                      | `400`, `429`                                               |
@@ -57,6 +58,12 @@ A guest gets `"identity": { "kind": "guest", "expiresAt": "…" }`, the guest qu
 `limits.compareMaxModels` (Phase 4) is how many models one [comparison](comparison.md) may run: `GUEST_COMPARE_MAX_MODELS` (default 2) or `USER_COMPARE_MAX_MODELS` (default 4). The API enforces it; the web app uses it to lock the model picker.
 
 `role` is `user` or `admin` (Phase 3). It only decides which controls the web app shows; admin routes check the role on the server. See [making the first admin](models.md#making-the-first-admin).
+
+## Topics
+
+`PATCH /api/me/interests` replaces the signed-in account's chat topics (MODEL-066). `interests` holds 0–3 topics: built-in ones (`INTEREST_TOPICS` in `packages/validation/src/interests.ts`: Coding, Business, Marketing, Writing, Design, Data & AI, Education, Health & Fitness, Travel, Finance, Career, Science) or the user's own. Each topic is trimmed with inner spaces collapsed, 2–40 characters, letters, numbers and `& ' + . # / -`, and unique ignoring case. An empty list records that the user skipped.
+
+Every `user` object carries `interests` (a list) and `interestsSetAt` (when they were saved or skipped, or `null` until the user answers). The web app asks once after signing in while `interestsSetAt` is `null`, and new chats suggest three starter prompts for the chosen topics. Topics can be changed later on the profile page.
 
 ## Field rules
 

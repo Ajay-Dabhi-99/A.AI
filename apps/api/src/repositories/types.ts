@@ -12,6 +12,8 @@ export type UserRecord = {
   firstName: string | null;
   lastName: string | null;
   phone: string | null;
+  interests: string[];
+  interestsSetAt: Date | null;
   role: UserRoleValue;
   emailVerifiedAt: Date | null;
   createdAt: Date;
@@ -70,6 +72,8 @@ export interface UserRepository {
   updatePasswordHash(id: string, passwordHash: string): Promise<void>;
   /** Replaces every profile field and returns the updated user. */
   updateProfile(id: string, profile: ProfileFields): Promise<UserRecord>;
+  /** Replaces the user's topics and records when they answered. */
+  updateInterests(id: string, interests: string[], at: Date): Promise<UserRecord>;
   /** Returns the updated user, or null when no account has this email. */
   setRoleByEmail(email: string, role: UserRoleValue): Promise<UserRecord | null>;
   /** Sets emailVerifiedAt if it is not set yet; returns the current user either way. */

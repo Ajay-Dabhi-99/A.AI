@@ -1,4 +1,5 @@
-import type { ProfileUpdateRequest } from '@a-ai/validation';
+import type { InterestsUpdateRequest, ProfileUpdateRequest } from '@a-ai/validation';
+import type { Clock } from '../../shared/clock.js';
 import type { ProfileFields, Repositories, UserRecord } from '../../repositories/types.js';
 
 /**
@@ -9,9 +10,11 @@ import type { ProfileFields, Repositories, UserRecord } from '../../repositories
  */
 export class ProfileService {
   readonly #users: Repositories['users'];
+  readonly #clock: Clock;
 
-  constructor(repositories: Repositories) {
+  constructor(repositories: Repositories, clock: Clock) {
     this.#users = repositories.users;
+    this.#clock = clock;
   }
 
   async update(userId: string, input: ProfileUpdateRequest): Promise<UserRecord> {
@@ -21,5 +24,10 @@ export class ProfileService {
       phone: input.phone,
     };
     return this.#users.updateProfile(userId, profile);
+  }
+
+  /** Saves up to three topics (MODEL-066); an empty list records that the user skipped. */
+  async updateInterests(userId: string, input: InterestsUpdateRequest): Promise<UserRecord> {
+    return this.#users.updateInterests(userId, input.interests, this.#clock.now());
   }
 }

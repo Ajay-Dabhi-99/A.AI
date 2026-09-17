@@ -35,6 +35,12 @@ export type ConversationSummary = {
   updatedAt: string;
 };
 
+/** POST /api/chat/suggestions (MODEL-067) */
+export type ChatSuggestionsResponse = {
+  /** Up to three follow-up questions; empty when none could be made. */
+  suggestions: string[];
+};
+
 /** GET /api/conversations */
 export type ConversationListResponse = {
   conversations: ConversationSummary[];

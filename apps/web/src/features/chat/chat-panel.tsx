@@ -18,7 +18,10 @@ import { useAudioStatus } from '@/hooks/use-audio-status';
 import { useMediaStatus } from '@/hooks/use-media-status';
 import { Composer } from './composer';
 import { MessageView } from './message-view';
-import { useChatSession, withMediaJobs } from './use-chat-session';
+import { starterPrompts } from '@/features/onboarding/topic-suggestions';
+import { currentUser, useMe } from '@/hooks/use-me';
+import { FollowUpSuggestions } from './follow-up-suggestions';
+import { useChatSession, withMediaJobs, type UiMessage } from './use-chat-session';
 import { speechSupported, useReadAloud } from './use-read-aloud';
 import { voiceInputSupported } from './use-voice-input';
 
@@ -46,6 +49,15 @@ function contextSummary(context: ChatContextInfo): string {
       ? ` · ${context.droppedMessages} older messages left out`
       : '';
   return `Context ${formatTokens(context.inputTokens)} of ${formatTokens(context.budgetTokens)} tokens (${percent}%)${note}`;
+}
+
+/** The user message an answer replied to (skipping image requests). */
+function questionBefore(messages: UiMessage[], index: number): string {
+  for (let at = index - 1; at >= 0; at--) {
+    const candidate = messages[at];
+    if (candidate?.role === 'user' && !candidate.imagePrompt) return candidate.content;
+  }
+  return '';
 }
 
 export function ChatPanel({
@@ -85,6 +97,8 @@ export function ChatPanel({
   const listRef = useRef<HTMLDivElement>(null);
   const [awayFromBottom, setAwayFromBottom] = useState(false);
   const audio = useAudioStatus();
+  const interests = currentUser(useMe().data)?.interests ?? [];
+  const starters = starterPrompts(interests, SUGGESTIONS);
   // Signed-in users can create images right here when image generation is enabled.
   const imageStatus = useMediaStatus('image');
   const imageModel = !isGuest && imageStatus.data?.enabled ? imageStatus.data.models[0] : undefined;
@@ -174,7 +188,15 @@ export function ChatPanel({
                 </p>
                 {models.length > 0 && (
                   <div className="mt-8 grid w-full gap-2">
-                    {SUGGESTIONS.map((suggestion) => (
+                    {interests.length > 0 && (
+                      <p className="mb-1 text-left text-xs text-muted-foreground">
+                        Suggested for your topics: {interests.join(' · ')} ·{' '}
+                        <Link to="/settings" className="text-primary hover:underline">
+                          Change
+                        </Link>
+                      </p>
+                    )}
+                    {starters.map((suggestion) => (
                       <button
                         key={suggestion}
                         type="button"
@@ -190,7 +212,7 @@ export function ChatPanel({
               </div>
             ) : (
               <ol className="mx-auto flex max-w-3xl flex-col gap-6">
-                {session.messages.map((message) => (
+                {session.messages.map((message, index) => (
                   <li key={message.key ?? message.id}>
                     <MessageView
                       message={message}
@@ -205,6 +227,18 @@ export function ChatPanel({
                           : undefined
                       }
                     />
+                    {index === session.messages.length - 1 &&
+                      message.fresh &&
+                      message.content &&
+                      !failure && (
+                        <FollowUpSuggestions
+                          answerKey={message.key ?? message.id}
+                          question={questionBefore(session.messages, index)}
+                          answer={message.content}
+                          disabled={session.streaming}
+                          onPick={(text) => void send(text)}
+                        />
+                      )}
                   </li>
                 ))}
               </ol>

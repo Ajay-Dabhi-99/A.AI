@@ -1,5 +1,6 @@
 import type {
   ChatStreamEvent,
+  ChatSuggestionsResponse,
   ConversationDetail,
   ConversationListResponse,
   GuestConversationResponse,
@@ -7,6 +8,7 @@ import type {
   ModelsResponse,
 } from '@a-ai/shared-types';
 import {
+  chatSuggestionsResponseSchema,
   conversationDetailSchema,
   conversationListResponseSchema,
   guestConversationResponseSchema,
@@ -14,6 +16,7 @@ import {
   modelsResponseSchema,
   parseChatStreamEvent,
   type ChatRequest,
+  type ChatSuggestionsRequest,
 } from '@a-ai/validation';
 import { apiRequest } from './api';
 import { postEventStream } from './event-stream';
@@ -22,6 +25,18 @@ const withSignal = (signal?: AbortSignal) => (signal ? { signal } : {});
 
 export const fetchModels = (signal?: AbortSignal): Promise<ModelsResponse> =>
   apiRequest('/api/models', { schema: modelsResponseSchema, ...withSignal(signal) });
+
+/** Follow-up questions for an answer (MODEL-067); an empty list when none could be made. */
+export const fetchChatSuggestions = (
+  input: ChatSuggestionsRequest,
+  signal?: AbortSignal,
+): Promise<ChatSuggestionsResponse> =>
+  apiRequest('/api/chat/suggestions', {
+    method: 'POST',
+    body: input,
+    schema: chatSuggestionsResponseSchema,
+    ...(signal ? { signal } : {}),
+  });
 
 export const fetchConversations = (signal?: AbortSignal): Promise<ConversationListResponse> =>
   apiRequest('/api/conversations', {

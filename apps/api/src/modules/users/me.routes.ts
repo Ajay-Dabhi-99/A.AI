@@ -1,5 +1,5 @@
 import type { AuthUserResponse, MeResponse } from '@a-ai/shared-types';
-import { profileUpdateSchema } from '@a-ai/validation';
+import { interestsUpdateSchema, profileUpdateSchema } from '@a-ai/validation';
 import type { FastifyInstance } from 'fastify';
 import { requireUser, resolveIdentity } from '../../plugins/auth.js';
 import { toAuthUser } from '../auth/auth.service.js';
@@ -36,6 +36,15 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
     const identity = await requireUser(request, reply);
     const input = profileUpdateSchema.parse(request.body ?? {});
     const user = await app.services.profile.update(identity.user.id, input);
+    return { user: toAuthUser(user) };
+  });
+
+  /** Replace the signed-in account's chat topics (MODEL-066). */
+  app.patch('/api/me/interests', async (request, reply): Promise<AuthUserResponse> => {
+    const identity = await requireUser(request, reply);
+    const input = interestsUpdateSchema.parse(request.body ?? {});
+    const user = await app.services.profile.updateInterests(identity.user.id, input);
+    reply.header('cache-control', 'no-store');
     return { user: toAuthUser(user) };
   });
 }

@@ -14,6 +14,10 @@ export type AuthUser = {
   lastName: string | null;
   /** Free-form international number; never used for authentication. */
   phone: string | null;
+  /** Up to three topics used for chat suggestions (MODEL-066). */
+  interests: string[];
+  /** When the topics were saved or skipped; null until the user answers. */
+  interestsSetAt: string | null;
   /** Admins can manage the model registry (Phase 3). */
   role: UserRole;
   createdAt: string;

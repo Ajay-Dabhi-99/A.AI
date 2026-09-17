@@ -93,6 +93,11 @@ export const serverEnvSchema = z
       .enum(['true', 'false'])
       .default('true')
       .transform((value) => value === 'true'),
+    /** Suggest follow-up questions after each answer (MODEL-067); one small extra model call. */
+    CHAT_SUGGESTIONS_ENABLED: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
     /** Supabase project URL for Storage (Phase 8). With the key, enables image uploads. */
     SUPABASE_URL: optionalString.pipe(originSchema.optional()),
     /** Server-side only. Never expose it to the web app. */

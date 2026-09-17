@@ -23,6 +23,10 @@ model User {
   firstName       String?        @db.VarChar(60)
   lastName        String?        @db.VarChar(60)
   phone           String?        @db.VarChar(24)
+  /// Up to three topics the user picked after signing in (MODEL-066).
+  interests       String[]       @default([]) @db.VarChar(40)
+  /// When the topics were last saved (also when skipped); null until the user answers.
+  interestsSetAt  DateTime?      @db.Timestamptz(3)
   role            UserRole       @default(USER)
   emailVerifiedAt DateTime?      @db.Timestamptz(3)
   createdAt       DateTime       @default(now()) @db.Timestamptz(3)

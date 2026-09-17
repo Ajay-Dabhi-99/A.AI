@@ -679,6 +679,65 @@
   }
 }
 
+/* Topic chips (MODEL-066) and follow-up suggestions (MODEL-067). */
+@layer components {
+  .topic-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    height: 2.125rem;
+    padding: 0 0.875rem;
+    border-radius: 9999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    font-size: 0.8125rem;
+    color: var(--foreground);
+    transition:
+      background-color 0.15s ease,
+      border-color 0.15s ease,
+      color 0.15s ease;
+  }
+  .topic-chip:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  }
+  .topic-chip[aria-pressed='true'] {
+    border-color: color-mix(in srgb, var(--primary) 60%, transparent);
+    background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+    color: var(--primary);
+    font-weight: 500;
+  }
+  .topic-chip:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .follow-ups {
+    animation: fade-in 0.3s ease-out 0.2s both;
+  }
+  .follow-up-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    max-width: 100%;
+    padding: 0.4375rem 0.75rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    text-align: left;
+    font-size: 0.8125rem;
+    color: var(--foreground);
+    transition:
+      background-color 0.15s ease,
+      border-color 0.15s ease;
+  }
+  .follow-up-chip:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+    background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+  }
+  .follow-up-chip:disabled {
+    opacity: 0.5;
+  }
+}
+
 /* Image creation inside the chat (MODEL-065). */
 @layer components {
   .image-model-chip {

@@ -3,6 +3,7 @@ import { Outlet, ScrollRestoration } from 'react-router';
 import { SiteFooter } from '@/components/layout/site-footer';
 import { SiteHeader } from '@/components/layout/site-header';
 import { PageSpinner } from '@/components/ui/spinner';
+import { InterestsDialog } from '@/features/onboarding/interests-dialog';
 import { preloadPages } from './page-loaders';
 
 export function RootLayout() {
@@ -32,6 +33,7 @@ export function RootLayout() {
         </Suspense>
       </main>
       <SiteFooter />
+      <InterestsDialog />
       <ScrollRestoration />
     </div>
   );

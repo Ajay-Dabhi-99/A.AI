@@ -137,6 +137,9 @@ export const authUserSchema = z.object({
   firstName: z.string().nullable(),
   lastName: z.string().nullable(),
   phone: z.string().nullable(),
+  // Defaults keep the web app working with an API from before MODEL-066.
+  interests: z.array(z.string()).default([]),
+  interestsSetAt: z.string().nullable().default(null),
   role: z.enum(['user', 'admin']),
   createdAt: z.string(),
 }) satisfies z.ZodType<AuthUser>;

@@ -74,6 +74,7 @@ Settings → Branches: require the `CI` checks (`Typecheck, lint, test, build` a
 | `RESEND_API_KEY`, `EMAIL_FROM`                         | yes          | Resend, with a verified sending domain                                |
 | `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY` | at least one | Provider dashboards; check quotas for expected traffic                |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`            | for uploads  | Supabase (both or neither)                                            |
+| `CHAT_SUGGESTIONS_ENABLED`                             | no           | `true` (default) suggests follow-up questions after each answer       |
 | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_AI_API_TOKEN`     | for images   | Cloudflare Workers AI REST API token (both or neither); needs storage |
 | `TRUST_PROXY_HOPS`                                     | no           | `1` on Render (in `render.yaml`)                                      |
 | `SENTRY_DSN`                                           | no           | Sentry API project                                                    |

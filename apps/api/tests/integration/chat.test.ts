@@ -1,6 +1,7 @@
 import { AIProviderError } from '@a-ai/ai-core';
 import type { ChatStreamEvent } from '@a-ai/shared-types';
 import {
+  chatSuggestionsResponseSchema,
   conversationDetailSchema,
   conversationListResponseSchema,
   guestConversationResponseSchema,
@@ -49,6 +50,16 @@ function chat(context: ChatTestContext, body: object, cookies: Record<string, st
     url: '/api/chat',
     headers: { origin: WEB_ORIGIN },
     payload: { provider: 'scripted', model: 'fast-1', ...body },
+    cookies,
+  });
+}
+
+function suggest(context: ChatTestContext, body: object, cookies: Record<string, string> = {}) {
+  return context.app.inject({
+    method: 'POST',
+    url: '/api/chat/suggestions',
+    headers: { origin: WEB_ORIGIN },
+    payload: body,
     cookies,
   });
 }
@@ -312,5 +323,52 @@ describe('POST /api/guest/migrate', () => {
 
     expect((await migrate()).json()).toEqual({ conversationId: null });
     expect(ctx.conversations.data.conversations).toHaveLength(1);
+  });
+});
+
+describe('POST /api/chat/suggestions', () => {
+  const body = { question: 'What is a vector database?', answer: 'A database for embeddings.' };
+
+  it('returns follow-up questions to guests and users without using the daily allowance', async () => {
+    ctx = await buildChatTestApp();
+    ctx.provider.setChatReplies(
+      '["How is it indexed?", "Is it free?", "Can I host it?"]',
+      '["Which one should I pick?"]',
+    );
+
+    const guest = await suggest(ctx, body);
+    expect(guest.statusCode).toBe(200);
+    expect(chatSuggestionsResponseSchema.parse(guest.json())).toEqual({
+      suggestions: ['How is it indexed?', 'Is it free?', 'Can I host it?'],
+    });
+    const guestCookie = cookieValue(guest, GUEST);
+    const me = meResponseSchema.parse(
+      (await ctx.app.inject({ url: '/api/me', cookies: { [GUEST]: guestCookie! } })).json(),
+    );
+    expect(me.quota.used).toBe(0);
+
+    const cookies = { [SESSION]: await signedInUser(ctx) };
+    expect(chatSuggestionsResponseSchema.parse((await suggest(ctx, body, cookies)).json())).toEqual(
+      {
+        suggestions: ['Which one should I pick?'],
+      },
+    );
+  });
+
+  it('answers with an empty list when the model fails, and validates input', async () => {
+    ctx = await buildChatTestApp();
+    ctx.provider.setChatReplies(new Error('provider down'));
+    const failed = await suggest(ctx, body);
+    expect(failed.statusCode).toBe(200);
+    expect(failed.json()).toEqual({ suggestions: [] });
+
+    expect((await suggest(ctx, { question: '', answer: 'x' })).statusCode).toBe(400);
+    expect((await suggest(ctx, { ...body, extra: true })).statusCode).toBe(400);
+  });
+
+  it('can be turned off', async () => {
+    ctx = await buildChatTestApp({ env: testEnv({ CHAT_SUGGESTIONS_ENABLED: 'false' }) });
+    expect((await suggest(ctx, body)).json()).toEqual({ suggestions: [] });
+    expect(ctx.provider.chatRequests).toHaveLength(0);
   });
 });

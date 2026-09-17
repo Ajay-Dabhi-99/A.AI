@@ -49,6 +49,14 @@ export const useUpdateProfile = () => {
   });
 };
 
+export const useUpdateInterests = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: authApi.updateInterests,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY }),
+  });
+};
+
 export const useSignup = () => useMutation({ mutationFn: authApi.signup });
 export const useResendVerification = () => useMutation({ mutationFn: authApi.resendVerification });
 export const useForgotPassword = () => useMutation({ mutationFn: authApi.forgotPassword });

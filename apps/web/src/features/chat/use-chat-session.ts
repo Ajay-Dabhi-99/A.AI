@@ -26,6 +26,8 @@ export type UiMessage = ChatMessage & {
   imagePrompt?: boolean;
   /** An image created in the chat, shown in place of an answer. */
   mediaJob?: MediaJob;
+  /** Answered in this session, so follow-up questions can be suggested (MODEL-067). */
+  fresh?: boolean;
 };
 
 /** The two chat rows an image job appears as: the request and the image. */
@@ -184,6 +186,7 @@ export function useChatSession(options: {
           id: messageId ?? answer.id,
           pending: false,
           notice: null,
+          fresh: status === 'completed',
           run: { ...runOf(answer), status, latencyMs },
         }));
       } else if (event.event === 'error') {

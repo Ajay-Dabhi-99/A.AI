@@ -10,6 +10,7 @@ Every request goes through the platform guards: rate limit, origin check on stat
 | ------ | ------------------------- | ------------- | ------------------------------- | ------------------------------------------------------- |
 | GET    | `/api/models`             | Anyone        | `200 ModelsResponse`            | Models whose provider key is configured, plus a default |
 | POST   | `/api/chat`               | Guest or user | `200 text/event-stream`         | Send a message (or retry) and stream the answer         |
+| POST   | `/api/chat/suggestions`   | Guest or user | `200 ChatSuggestionsResponse`   | Up to three follow-up questions for an answer           |
 | GET    | `/api/conversations`      | User          | `200 ConversationListResponse`  | Up to 50 chats: pinned first, then most recently active |
 | GET    | `/api/conversations/:id`  | User (owner)  | `200 ConversationDetail`        | One chat with every message and its run                 |
 | GET    | `/api/guest/conversation` | Guest         | `200 GuestConversationResponse` | The guest's temporary chat                              |
@@ -115,6 +116,30 @@ data: {"runId":"…","code":"PROVIDER_TIMEOUT","message":"Groq stopped respondin
 ### Cancellation
 
 Closing the connection (the web app's Stop button aborts the fetch) cancels the upstream provider request. The run is recorded as `CANCELLED`; partial text is kept, and if nothing had arrived the message's allowance is refunded. Full outcome table: [ADR-009](../decisions/ADR-009-chat-providers.md#4-chat-request-lifecycle).
+
+## `POST /api/chat/suggestions`
+
+Follow-up questions for the answer just shown (MODEL-067). The web app calls it once for each answer completed in the current session and shows the result as buttons under the latest answer; clicking one sends it as the next message.
+
+```json
+{ "question": "What is a vector database?", "answer": "A vector database stores embeddings…" }
+```
+
+```json
+{
+  "suggestions": [
+    "How does nearest-neighbour search find similar items?",
+    "What are some popular open-source vector databases?",
+    "Can vector databases handle image embeddings as well?"
+  ]
+}
+```
+
+- `question` 1–4,000 and `answer` 1–8,000 characters after trimming (the web app sends the end of a longer answer); unknown fields are `400`.
+- One non-streaming call to a text model of a healthy provider, Groq first, then the others in registry order; at most two models are tried, 12 s each. The reply is read as a JSON array (or one question per line) and cut to three distinct questions of 3–120 characters.
+- Best effort: when models fail or reply with nothing usable the answer is `200 { "suggestions": [] }`. Not charged to the daily message allowance; limited to 120 an hour per user, 30 per guest session and 60 per guest IP (`429 RATE_LIMITED`).
+- `CHAT_SUGGESTIONS_ENABLED=false` turns it off (always an empty list, no model call).
+- Checked 2026-09-17 against Groq: three relevant questions in about 2 s.
 
 ## Guests
 

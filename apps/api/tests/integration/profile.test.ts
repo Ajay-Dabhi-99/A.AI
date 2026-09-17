@@ -50,6 +50,53 @@ async function signedIn(): Promise<{ app: FastifyInstance; cookies: Record<strin
   return { app, cookies: { [SESSION]: session } };
 }
 
+describe('PATCH /api/me/interests', () => {
+  const patchInterests = (
+    app: FastifyInstance,
+    payload: object,
+    cookies?: Record<string, string>,
+  ) =>
+    app.inject({
+      method: 'PATCH',
+      url: '/api/me/interests',
+      headers: { origin: WEB_ORIGIN },
+      payload,
+      ...(cookies ? { cookies } : {}),
+    });
+
+  it('starts unanswered, then saves up to three topics', async () => {
+    const { app, cookies } = await signedIn();
+    const before = meResponseSchema.parse((await app.inject({ url: '/api/me', cookies })).json());
+    expect(before.identity).toMatchObject({ user: { interests: [], interestsSetAt: null } });
+
+    const saved = await patchInterests(app, { interests: ['Travel', ' Street  food '] }, cookies);
+    expect(saved.statusCode).toBe(200);
+    const { user } = authUserResponseSchema.parse(saved.json());
+    expect(user.interests).toEqual(['Travel', 'Street food']);
+    expect(user.interestsSetAt).toEqual(expect.any(String));
+
+    const after = meResponseSchema.parse((await app.inject({ url: '/api/me', cookies })).json());
+    expect(after.identity).toMatchObject({ user: { interests: ['Travel', 'Street food'] } });
+  });
+
+  it('records a skip as an empty list', async () => {
+    const { app, cookies } = await signedIn();
+    const skipped = authUserResponseSchema.parse(
+      (await patchInterests(app, { interests: [] }, cookies)).json(),
+    ).user;
+    expect(skipped).toMatchObject({ interests: [], interestsSetAt: expect.any(String) });
+  });
+
+  it('rejects invalid topics and guests', async () => {
+    const { app, cookies } = await signedIn();
+    const tooMany = await patchInterests(app, { interests: ['Aa', 'Bb', 'Cc', 'Dd'] }, cookies);
+    expect(tooMany.statusCode).toBe(400);
+    expect(apiErrorBodySchema.parse(tooMany.json()).error.code).toBe('VALIDATION_ERROR');
+    expect((await patchInterests(app, { interests: ['Aa', 'aa'] }, cookies)).statusCode).toBe(400);
+    expect((await patchInterests(app, { interests: ['Aa'] })).statusCode).toBe(401);
+  });
+});
+
 describe('PATCH /api/me/profile', () => {
   it('starts with the name given at signup', async () => {
     const { app, cookies } = await signedIn();

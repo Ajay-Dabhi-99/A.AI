@@ -28,6 +28,8 @@ export function createPrismaRepositories(db: Db): Repositories {
         await db.user.update({ where: { id }, data: { passwordHash } });
       },
       updateProfile: (id, profile) => db.user.update({ where: { id }, data: profile }),
+      updateInterests: (id, interests, at) =>
+        db.user.update({ where: { id }, data: { interests, interestsSetAt: at } }),
       markEmailVerified: async (id, at) => {
         await db.user.updateMany({
           where: { id, emailVerifiedAt: null },

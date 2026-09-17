@@ -4,6 +4,7 @@ import {
   authUserResponseSchema,
   meResponseSchema,
   type EmailRequest,
+  type InterestsUpdateRequest,
   type LoginRequest,
   type ProfileUpdateRequest,
   type ResetPasswordRequest,
@@ -17,6 +18,13 @@ export const fetchMe = (signal?: AbortSignal): Promise<MeResponse> =>
 
 export const updateProfile = (input: ProfileUpdateRequest): Promise<AuthUserResponse> =>
   apiRequest('/api/me/profile', {
+    method: 'PATCH',
+    body: input,
+    schema: authUserResponseSchema,
+  });
+
+export const updateInterests = (input: InterestsUpdateRequest): Promise<AuthUserResponse> =>
+  apiRequest('/api/me/interests', {
     method: 'PATCH',
     body: input,
     schema: authUserResponseSchema,

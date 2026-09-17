@@ -34,6 +34,10 @@ export const RATE_LIMITS = {
   transcribeByIp: { name: 'stt-ip', limit: 30, windowMs: 60 * MINUTE },
   /** Video-generation jobs per signed-in user per day (Phase 9). */
   videoByUser: { name: 'video-user', limit: 5, windowMs: 24 * 60 * MINUTE },
+  /** Follow-up suggestions (MODEL-067): per user, per guest session, per guest IP. */
+  suggestByUser: { name: 'suggest-user', limit: 120, windowMs: 60 * MINUTE },
+  suggestByGuest: { name: 'suggest-guest', limit: 30, windowMs: 60 * MINUTE },
+  suggestByIp: { name: 'suggest-ip', limit: 60, windowMs: 60 * MINUTE },
   /** Image-generation jobs per signed-in user per day (Phase 8). */
   imageByUser: { name: 'image-user', limit: 20, windowMs: 24 * 60 * MINUTE },
 } as const satisfies Record<string, RateLimitRule>;

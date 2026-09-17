@@ -62,6 +62,9 @@ export const testUser: AuthUser = {
   firstName: null,
   lastName: null,
   phone: null,
+  interests: [],
+  // Answered, so the topics dialog stays closed unless a test asks for it.
+  interestsSetAt: '2026-09-01T12:00:00.000Z',
   role: 'user',
   createdAt: '2026-09-01T12:00:00.000Z',
 };

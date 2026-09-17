@@ -1,10 +1,11 @@
 import type {
+  ChatSuggestionsResponse,
   ConversationDetail,
   ConversationListResponse,
   GuestConversationResponse,
   GuestMigrationResponse,
 } from '@a-ai/shared-types';
-import { chatRequestSchema } from '@a-ai/validation';
+import { chatRequestSchema, chatSuggestionsRequestSchema } from '@a-ai/validation';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { hashedIp, requireUser, resolveIdentity } from '../../plugins/auth.js';
@@ -46,6 +47,26 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     } finally {
       stream.close();
     }
+  });
+
+  /** Follow-up questions for the answer just shown (MODEL-067). Best effort. */
+  app.post('/api/chat/suggestions', async (request, reply): Promise<ChatSuggestionsResponse> => {
+    const input = chatSuggestionsRequestSchema.parse(request.body ?? {});
+    const identity = await resolveIdentity(request, reply, { createGuest: true });
+    const controller = new AbortController();
+    reply.raw.on('close', () => {
+      if (!reply.raw.writableFinished) {
+        controller.abort(new DOMException('The client disconnected', 'AbortError'));
+      }
+    });
+    reply.header('cache-control', 'no-store');
+    return app.services.suggestions.suggest(
+      identity.kind === 'user'
+        ? { kind: 'user', userId: identity.user.id }
+        : { kind: 'guest', guestId: identity.guest.id, ipHash: hashedIp(request) },
+      input,
+      controller.signal,
+    );
   });
 
   app.get('/api/conversations', async (request, reply): Promise<ConversationListResponse> => {

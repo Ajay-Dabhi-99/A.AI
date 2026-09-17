@@ -4,6 +4,7 @@ import type {
   ChatStreamEvent,
   ChatStreamEventMap,
   ChatStreamEventName,
+  ChatSuggestionsResponse,
   ConversationDetail,
   ConversationListResponse,
   GuestConversationResponse,
@@ -50,6 +51,23 @@ export const chatRequestSchema = z
   });
 
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
+
+export const SUGGESTION_QUESTION_MAX_LENGTH = 4_000;
+export const SUGGESTION_ANSWER_MAX_LENGTH = 8_000;
+
+/** POST /api/chat/suggestions: follow-ups for one question and its answer (MODEL-067). */
+export const chatSuggestionsRequestSchema = z
+  .object({
+    question: z.string().trim().min(1).max(SUGGESTION_QUESTION_MAX_LENGTH),
+    answer: z.string().trim().min(1).max(SUGGESTION_ANSWER_MAX_LENGTH),
+  })
+  .strict();
+
+export type ChatSuggestionsRequest = z.infer<typeof chatSuggestionsRequestSchema>;
+
+export const chatSuggestionsResponseSchema = z.object({
+  suggestions: z.array(z.string()).max(3),
+}) satisfies z.ZodType<ChatSuggestionsResponse>;
 
 export const aiModelSchema = z.object({
   id: z.string(),
