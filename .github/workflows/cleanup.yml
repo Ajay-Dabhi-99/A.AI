@@ -1,0 +1,48 @@
+# Daily removal of image uploads that were never sent with a message
+# (Phase 8, ADR-015 section 4). Supabase Storage has no lifecycle rules and the
+# Render free plan has no cron jobs, so GitHub Actions runs it.
+#
+# Secrets required (Settings -> Secrets and variables -> Actions), same values
+# as Render: DATABASE_URL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
+# Without the two Supabase values the script exits 0 with "nothing to clean up",
+# so the job stays green while image uploads are switched off.
+name: Attachments cleanup
+
+on:
+  schedule:
+    # 03:30 UTC = 09:00 IST, matching the Render cron job in render.yaml.
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: attachments-cleanup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    name: Remove unsent image uploads
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies (generates the Prisma client)
+        run: pnpm install --frozen-lockfile
+
+      - name: Remove uploads never sent within 24 hours
+        run: pnpm attachments:cleanup
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_STORAGE_BUCKET: a-ai-attachments
