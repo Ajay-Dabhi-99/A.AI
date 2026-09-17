@@ -95,6 +95,34 @@ export function createMemoryConversations(): MemoryConversations {
         .slice(0, limit)
         .map((conversation) => ({ ...conversation })),
 
+    search: async (userId, text, limit) => {
+      const needle = text.toLowerCase();
+      return data.conversations
+        .filter((conversation) => conversation.userId === userId)
+        .map((conversation) => {
+          const match =
+            data.messages
+              .filter(
+                (message) =>
+                  message.conversationId === conversation.id &&
+                  message.content.toLowerCase().includes(needle),
+              )
+              .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0]?.content ?? null;
+          return { conversation: { ...conversation }, match };
+        })
+        .filter(
+          ({ conversation, match }) =>
+            match !== null || conversation.title.toLowerCase().includes(needle),
+        )
+        .sort(
+          (a, b) =>
+            (b.conversation.pinnedAt?.getTime() ?? -1) -
+              (a.conversation.pinnedAt?.getTime() ?? -1) ||
+            b.conversation.updatedAt.getTime() - a.conversation.updatedAt.getTime(),
+        )
+        .slice(0, limit);
+    },
+
     listMessages: async (conversationId) =>
       data.messages
         .filter((message) => message.conversationId === conversationId)

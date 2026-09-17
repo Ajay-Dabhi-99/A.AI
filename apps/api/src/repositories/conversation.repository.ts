@@ -1,4 +1,5 @@
 import type { PrismaClient } from '../generated/prisma/client.js';
+import { escapeLike } from './history.repository.js';
 
 /** Persistence for signed-in users' chats (blueprint §8). Guests use Redis instead. */
 
@@ -108,6 +109,16 @@ export interface ConversationRepository {
   findForUser(id: string, userId: string): Promise<ConversationRecord | null>;
   /** Pinned first (most recently pinned on top), then most recently active. */
   listForUser(userId: string, limit: number): Promise<ConversationRecord[]>;
+  /**
+   * The user's chats whose title or any message contains `text` (case-insensitive,
+   * matched literally), pinned first then most recent, each with the newest
+   * matching message when a message matched (MODEL-071).
+   */
+  search(
+    userId: string,
+    text: string,
+    limit: number,
+  ): Promise<{ conversation: ConversationRecord; match: string | null }[]>;
   /** Oldest first, each with its run when it has one. */
   listMessages(conversationId: string): Promise<MessageRecord[]>;
   /**
@@ -166,6 +177,26 @@ export function createPrismaConversationRepository(prisma: PrismaClient): Conver
         orderBy: [{ pinnedAt: { sort: 'desc', nulls: 'last' } }, { updatedAt: 'desc' }],
         take: limit,
       }),
+
+    search: async (userId, text, limit) => {
+      const pattern = `%${escapeLike(text)}%`;
+      const rows = await prisma.$queryRaw<(ConversationRecord & { match: string | null })[]>`
+        SELECT c."id", c."userId", c."title", c."guestMigrationKey", c."summary",
+               c."summaryUpToMessageId", c."summaryUpdatedAt", c."pinnedAt",
+               c."createdAt", c."updatedAt",
+               (SELECT m."content" FROM "messages" m
+                 WHERE m."conversationId" = c."id" AND m."content" ILIKE ${pattern} ESCAPE '\\'
+                 ORDER BY m."createdAt" DESC LIMIT 1) AS "match"
+        FROM "conversations" c
+        WHERE c."userId" = ${userId}::uuid
+          AND (c."title" ILIKE ${pattern} ESCAPE '\\'
+               OR EXISTS (SELECT 1 FROM "messages" m
+                           WHERE m."conversationId" = c."id"
+                             AND m."content" ILIKE ${pattern} ESCAPE '\\'))
+        ORDER BY c."pinnedAt" DESC NULLS LAST, c."updatedAt" DESC, c."id" DESC
+        LIMIT ${limit}`;
+      return rows.map(({ match, ...conversation }) => ({ conversation, match }));
+    },
 
     listMessages: (conversationId) =>
       prisma.message.findMany({

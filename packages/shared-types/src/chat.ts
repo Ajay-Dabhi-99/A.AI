@@ -35,6 +35,16 @@ export type ConversationSummary = {
   updatedAt: string;
 };
 
+/** One chat found by GET /api/conversations/search (MODEL-071). */
+export type ConversationSearchResult = ConversationSummary & {
+  /** Where the text was found. A title match wins when both match. */
+  matchedIn: 'title' | 'message';
+  /** A short excerpt of the newest matching message, or null for a title-only match. */
+  snippet: string | null;
+};
+
+export type ConversationSearchResponse = { results: ConversationSearchResult[] };
+
 /** A chat's public link (MODEL-070); the web app builds the URL from the token. */
 export type ConversationShare = {
   token: string;

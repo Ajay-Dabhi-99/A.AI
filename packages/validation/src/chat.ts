@@ -5,6 +5,7 @@ import type {
   ChatStreamEventMap,
   ChatStreamEventName,
   ChatSuggestionsResponse,
+  ConversationSearchResponse,
   ConversationShareResponse,
   SharedConversation,
   ConversationDetail,
@@ -145,6 +146,36 @@ export const conversationDetailSchema = conversationSummarySchema.extend({
   // Defaults to none so the web app still reads an API from before MODEL-065.
   mediaJobs: z.array(mediaJobSchema).default([]),
 }) satisfies z.ZodType<ConversationDetail>;
+
+export const CHAT_SEARCH_MIN_LENGTH = 2;
+export const CHAT_SEARCH_MAX_LENGTH = 120;
+export const CHAT_SEARCH_LIMIT = 20;
+
+/** GET /api/conversations/search (MODEL-071). */
+export const conversationSearchQuerySchema = z.object({
+  q: z
+    .string()
+    .trim()
+    .transform((value) => value.replace(/\s+/g, ' '))
+    .pipe(
+      z
+        .string()
+        .min(CHAT_SEARCH_MIN_LENGTH, `Type at least ${CHAT_SEARCH_MIN_LENGTH} characters`)
+        .max(
+          CHAT_SEARCH_MAX_LENGTH,
+          `Searches can be at most ${CHAT_SEARCH_MAX_LENGTH} characters`,
+        ),
+    ),
+});
+
+export const conversationSearchResponseSchema = z.object({
+  results: z.array(
+    conversationSummarySchema.extend({
+      matchedIn: z.enum(['title', 'message']),
+      snippet: z.string().nullable(),
+    }),
+  ),
+}) satisfies z.ZodType<ConversationSearchResponse>;
 
 export const conversationShareResponseSchema = z.object({
   share: z

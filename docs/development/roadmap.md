@@ -98,6 +98,7 @@ The blueprint defines MODEL-001 to MODEL-014. IDs from MODEL-015 on are added he
 | MODEL-068 | Copy, regenerate and edit messages                        | P2    | CODE COMPLETE (real call PASS)    |
 | MODEL-069 | Personal instructions                                     | P2    | CODE COMPLETE (real call PASS)    |
 | MODEL-070 | Share a chat with a public read-only link                 | P7    | CODE COMPLETE (real call PASS)    |
+| MODEL-071 | Search inside chat text                                   | P7    | CODE COMPLETE (real call PASS)    |
 | MODEL-017 | Groq provider                                             | P2    | CODE COMPLETE (real call PASS)    |
 | MODEL-009 | OpenRouter provider                                       | P2    | CODE COMPLETE (real call PASS)    |
 | MODEL-010 | Gemini provider                                           | P2    | CODE COMPLETE (used in the app)   |
@@ -180,5 +181,13 @@ MODEL-070 (2026-09-17): share links, on branch `feature/share-links` (started fr
 - Web: Share in each chat's options menu opens `features/chat/share-dialog.tsx` (create, copy, update, stop); public page `pages/shared-chat-page.tsx` at `/share/:token` (read-only, noindex, link to start a chat); the topics dialog stays closed there. Dialog panels no longer show a focus outline around the whole panel.
 - Tests: `packages/validation/tests/chat.test.ts` (token and schemas), `apps/api/tests/unit/share.service.test.ts` (snapshot, later messages private until updated, 200 cap, empty chat, other users, stop), `apps/api/tests/integration/share.test.ts` (routes, public headers, owner-only, bad tokens, empty chat), `apps/api/tests/live/chat-repositories.test.ts` (RLS, upsert keeps the token, cascade; not run), `apps/web/tests/share.test.tsx` (dialog create, copy, stop; public page; removed link).
 - Real checks: migration applied; with a temporary Supabase user (deleted afterwards) RLS was on, the running API served the snapshot publicly with `noindex`, and deleting the chat made the link `404`. Edge screenshots of the dialog and the public page.
+
+MODEL-071 (2026-09-17): search inside chat text, on branch `feature/chat-search` (started from `feature/share-links`).
+
+- API: `GET /api/conversations/search` (`chat.routes.ts`, `conversationSearchQuerySchema`); `ChatSearchService` and `snippetAround` (`modules/chat/search.service.ts`); `ConversationRepository.search` (one SQL query: title or any message `ILIKE` with `escapeLike`, newest matching message, pinned then recent, limit 20). No migration and no new index.
+- Web: `features/chat/search-results.tsx` replaces the title-only filter in the sidebar (debounced, highlighted matches, empty, error and "type 2 characters" states).
+- Tests: `packages/validation/tests/chat.test.ts`, `apps/api/tests/unit/search.service.test.ts`, `apps/api/tests/integration/chat.test.ts` (message and title matches, literal `%`, other users hidden, 400, 401), `apps/api/tests/live/chat-repositories.test.ts` (literal `%` and `_`, case, owner only; not run), `apps/web/tests/chat-search.test.tsx`.
+- Real checks: the query against Supabase with two temporary users (deleted afterwards): `50%` matched literally, `5_%` matched nothing, case was ignored, the other user's chat never appeared, a title-only match had no snippet; the restarted API answers guests with `401`. Edge screenshot of the sidebar results.
+- Deferred: a `pg_trgm` index for very large histories.
 
 MODEL-008 is listed in the blueprint between Phase 1 tasks, but the provider interface skeleton is Phase 0 scope (§16), so it was delivered there.

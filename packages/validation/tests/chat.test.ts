@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   chatRequestSchema,
   conversationListResponseSchema,
+  conversationSearchQuerySchema,
   conversationShareResponseSchema,
   parseChatStreamEvent,
   sharedConversationSchema,
@@ -77,6 +78,18 @@ describe('parseChatStreamEvent', () => {
     expect(parseChatStreamEvent('toString', '{}')).toBeNull();
     expect(parseChatStreamEvent('message.delta', '{oops')).toBeNull();
     expect(parseChatStreamEvent('message.delta', '{"runId":"r1"}')).toBeNull();
+  });
+});
+
+describe('conversationSearchQuerySchema (MODEL-071)', () => {
+  it('trims and collapses spaces, and needs 2–120 characters', () => {
+    expect(conversationSearchQuerySchema.parse({ q: '  hello   world ' })).toEqual({
+      q: 'hello world',
+    });
+    for (const q of [undefined, '', ' a ', 'x'.repeat(121)]) {
+      expect(conversationSearchQuerySchema.safeParse({ q }).success).toBe(false);
+    }
+    expect(conversationSearchQuerySchema.safeParse({ q: '50%' }).success).toBe(true);
   });
 });
 

@@ -30,6 +30,7 @@ import { cn } from '@/lib/utils';
 import { ApiError } from '@/services/api';
 import { fetchConversations } from '@/services/chat';
 import { deleteHistoryItem, updateConversation } from '@/services/history';
+import { SearchResults } from './search-results';
 import { ShareDialog } from './share-dialog';
 import { CONVERSATIONS_QUERY_KEY } from './use-chat-session';
 
@@ -427,10 +428,9 @@ export function ConversationSidebar({
   const [query, setQuery] = useState('');
 
   const all = conversations.data?.conversations ?? [];
-  const needle = query.trim().toLowerCase();
-  const visible = needle ? all.filter((chat) => chat.title.toLowerCase().includes(needle)) : all;
-  const pinned = visible.filter((chat) => chat.pinnedAt !== null);
-  const recent = visible.filter((chat) => chat.pinnedAt === null);
+  const needle = query.trim();
+  const pinned = all.filter((chat) => chat.pinnedAt !== null);
+  const recent = all.filter((chat) => chat.pinnedAt === null);
 
   const row = (chat: ConversationSummary) => (
     <li key={chat.id}>
@@ -477,7 +477,7 @@ export function ConversationSidebar({
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search chats"
+            placeholder="Search chats and messages"
             className="h-9 w-full rounded-lg border border-border bg-background/60 pr-2 pl-8 text-sm text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-primary/50 sm:h-8 sm:text-xs"
           />
         </label>
@@ -503,10 +503,8 @@ export function ConversationSidebar({
             </span>
             <p className="text-xs text-muted-foreground">Your saved chats will appear here.</p>
           </div>
-        ) : visible.length === 0 ? (
-          <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-            No chats match “{query.trim()}”.
-          </p>
+        ) : needle ? (
+          <SearchResults query={query} activeId={activeId} onNavigate={onNavigate} />
         ) : (
           <>
             {pinned.length > 0 && (

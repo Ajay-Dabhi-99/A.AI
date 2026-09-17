@@ -1,6 +1,7 @@
 import type {
   ChatStreamEvent,
   ChatSuggestionsResponse,
+  ConversationSearchResponse,
   ConversationShareResponse,
   SharedConversation,
   ConversationDetail,
@@ -11,6 +12,7 @@ import type {
 } from '@a-ai/shared-types';
 import {
   chatSuggestionsResponseSchema,
+  conversationSearchResponseSchema,
   conversationShareResponseSchema,
   sharedConversationSchema,
   conversationDetailSchema,
@@ -29,6 +31,16 @@ const withSignal = (signal?: AbortSignal) => (signal ? { signal } : {});
 
 export const fetchModels = (signal?: AbortSignal): Promise<ModelsResponse> =>
   apiRequest('/api/models', { schema: modelsResponseSchema, ...withSignal(signal) });
+
+/** Chats whose title or messages contain the text (MODEL-071). */
+export const searchConversations = (
+  q: string,
+  signal?: AbortSignal,
+): Promise<ConversationSearchResponse> =>
+  apiRequest(`/api/conversations/search?q=${encodeURIComponent(q)}`, {
+    schema: conversationSearchResponseSchema,
+    ...withSignal(signal),
+  });
 
 const shareUrl = (conversationId: string) =>
   `/api/conversations/${encodeURIComponent(conversationId)}/share`;

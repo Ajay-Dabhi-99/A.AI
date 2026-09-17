@@ -139,6 +139,25 @@ describe('Prisma conversation repository', () => {
     expect(await conversations.rewindTo(conversation.id, question.id)).toEqual([]);
   });
 
+  it('searches titles and messages literally and only for the owner', async () => {
+    const userId = await newUser();
+    const otherId = await newUser();
+    const budget = await conversations.create({ userId, title: 'Budget' });
+    await conversations.addUserMessage(budget.id, 'Rent is 50% of pay');
+    const trip = await conversations.create({ userId, title: 'Kyoto trip' });
+    const theirs = await conversations.create({ userId: otherId, title: 'Kyoto 50%' });
+    await conversations.addUserMessage(theirs.id, '50% kyoto');
+
+    const titles = async (text: string) =>
+      (await conversations.search(userId, text, 20)).map(({ conversation, match }) => [
+        conversation.id,
+        match,
+      ]);
+    expect(await titles('50%')).toEqual([[budget.id, 'Rent is 50% of pay']]);
+    expect(await titles('5_%')).toEqual([]);
+    expect(await titles('KYOTO')).toEqual([[trip.id, null]]);
+  });
+
   it('keeps a share per chat, with RLS, and removes it with the chat', async () => {
     const [rls] = await prisma.$queryRaw<{ relrowsecurity: boolean }[]>`
       SELECT relrowsecurity FROM pg_class WHERE relname = 'conversation_shares' AND relkind = 'r'`;

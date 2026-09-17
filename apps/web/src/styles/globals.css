@@ -738,6 +738,26 @@
   }
 }
 
+/* Search results in the sidebar (MODEL-071). */
+@layer components {
+  .search-result {
+    display: block;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.625rem;
+    transition: background-color 0.15s ease;
+  }
+  .search-result:hover,
+  .search-result:focus-visible {
+    background: var(--surface-muted);
+  }
+  .search-mark {
+    border-radius: 0.2rem;
+    padding: 0 0.1rem;
+    background: color-mix(in srgb, var(--primary) 22%, transparent);
+    color: inherit;
+  }
+}
+
 /* Copy, regenerate and edit (MODEL-068). */
 @layer components {
   .message-action {
