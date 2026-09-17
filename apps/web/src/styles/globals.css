@@ -660,10 +660,13 @@
   }
 }
 
+/* Tailwind centres the panel with the `translate` property, so this keyframe
+   must not repeat it: a translate() here would stack on top of that and make
+   the dialog fly in diagonally. Scale and a small rise only. */
 @keyframes dialog-in {
   from {
     opacity: 0;
-    transform: translate(-50%, -48%) scale(0.97);
+    transform: scale(0.96) translateY(8px);
   }
 }
 

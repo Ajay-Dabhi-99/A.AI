@@ -196,7 +196,10 @@ export function ChatPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="relative flex min-h-0 flex-1 flex-col">
+      {/* overflow-hidden keeps the list's clipped content from counting as
+          scrollable overflow on the page: without it a long conversation adds its
+          full height of empty scroll below the footer. */}
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         <div
           ref={listRef}
           onScroll={onListScroll}
