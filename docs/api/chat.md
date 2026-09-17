@@ -10,11 +10,13 @@ Every request goes through the platform guards: rate limit, origin check on stat
 | ------ | ------------------------- | ------------- | ------------------------------- | ------------------------------------------------------- |
 | GET    | `/api/models`             | Anyone        | `200 ModelsResponse`            | Models whose provider key is configured, plus a default |
 | POST   | `/api/chat`               | Guest or user | `200 text/event-stream`         | Send a message (or retry) and stream the answer         |
-| GET    | `/api/conversations`      | User          | `200 ConversationListResponse`  | Up to 50 chats, most recently active first              |
+| GET    | `/api/conversations`      | User          | `200 ConversationListResponse`  | Up to 50 chats: pinned first, then most recently active |
 | GET    | `/api/conversations/:id`  | User (owner)  | `200 ConversationDetail`        | One chat with every message and its run                 |
 | GET    | `/api/guest/conversation` | Guest         | `200 GuestConversationResponse` | The guest's temporary chat                              |
 | DELETE | `/api/guest/conversation` | Guest         | `204`                           | Start a fresh guest chat                                |
 | POST   | `/api/guest/migrate`      | User          | `200 { conversationId }`        | Move the guest chat into the account (idempotent)       |
+
+Each chat in `ConversationListResponse` and `ConversationDetail` is a `ConversationSummary`: `id`, `title`, `pinnedAt` (ISO time, or `null` when not pinned), `createdAt`, `updatedAt`. `ConversationDetail` also has `mediaJobs`, the images created in the chat ([generation](generation.md#images-inside-a-chat-model-065)). Pinned chats are listed first, most recently pinned on top; rename and pin with [`PATCH /api/conversations/:id`](history.md#patch-apiconversationsid) (MODEL-062).
 
 ## `POST /api/chat`
 

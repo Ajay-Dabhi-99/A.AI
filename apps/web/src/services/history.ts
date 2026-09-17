@@ -1,6 +1,6 @@
 import type {
   ComparisonDetail,
-  ConversationRenameResponse,
+  ConversationUpdateResponse,
   ConversationRunsResponse,
   HistoryKind,
   HistoryListResponse,
@@ -9,7 +9,7 @@ import type {
 } from '@a-ai/shared-types';
 import {
   comparisonDetailSchema,
-  conversationRenameResponseSchema,
+  conversationUpdateResponseSchema,
   conversationRunsResponseSchema,
   historyListResponseSchema,
   usageReportSchema,
@@ -58,14 +58,15 @@ export const fetchComparisonDetail = (
     ...withSignal(signal),
   });
 
-export const renameConversation = (
+/** Renames and/or pins a saved chat. */
+export const updateConversation = (
   id: string,
-  title: string,
-): Promise<ConversationRenameResponse> =>
+  changes: { title?: string; pinned?: boolean },
+): Promise<ConversationUpdateResponse> =>
   apiRequest(`/api/conversations/${encodeURIComponent(id)}`, {
     method: 'PATCH',
-    body: { title },
-    schema: conversationRenameResponseSchema,
+    body: changes,
+    schema: conversationUpdateResponseSchema,
   });
 
 export const deleteHistoryItem = (kind: HistoryKind, id: string): Promise<void> =>

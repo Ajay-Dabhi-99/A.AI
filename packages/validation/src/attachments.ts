@@ -67,6 +67,8 @@ export const mediaGenerateRequestSchema = z
       .trim()
       .min(1, 'Describe what to generate first')
       .max(MEDIA_PROMPT_MAX_LENGTH, `Prompts can be at most ${MEDIA_PROMPT_MAX_LENGTH} characters`),
+    /** Create it inside this chat, or `new` to start a chat with it (MODEL-065). */
+    conversationId: z.union([z.uuid('Unknown conversation'), z.literal('new')]).optional(),
   })
   .strict();
 
@@ -84,6 +86,8 @@ export const mediaJobSchema = z.object({
   progress: z.number().min(0).max(1).nullable(),
   errorCode: z.string().nullable(),
   attachment: attachmentSchema.nullable(),
+  // Defaults to null so the web app still reads an API from before MODEL-065.
+  conversationId: z.string().nullable().default(null),
   createdAt: z.string(),
   completedAt: z.string().nullable(),
 }) satisfies z.ZodType<MediaJob>;

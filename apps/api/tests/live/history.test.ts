@@ -176,15 +176,22 @@ describe('Prisma history repository', () => {
     expect(new Set([...first, ...rest].map((item) => item.id)).size).toBe(3);
   });
 
-  it('renames without touching updatedAt, and deletes with cascade', async () => {
+  it('renames and pins without touching updatedAt, and deletes with cascade', async () => {
     const me = await newUser();
     const id = await chatWithRun(me, 'Old', null, 500);
     const before = await prisma.conversation.findUniqueOrThrow({ where: { id } });
 
-    const renamed = await history.renameConversation(id, me, 'New');
-    expect(renamed).toMatchObject({ title: 'New' });
+    const renamed = await history.updateConversation(id, me, { title: 'New' });
+    expect(renamed).toMatchObject({ title: 'New', pinnedAt: null });
     expect(renamed?.updatedAt.getTime()).toBe(before.updatedAt.getTime());
-    expect(await history.renameConversation(id, randomUUID(), 'Hijack')).toBeNull();
+    expect(await history.updateConversation(id, randomUUID(), { title: 'Hijack' })).toBeNull();
+
+    const pinnedAt = new Date('2026-09-17T12:00:00.000Z');
+    const pinned = await history.updateConversation(id, me, { pinnedAt });
+    expect(pinned).toMatchObject({ title: 'New', pinnedAt });
+    expect(pinned?.updatedAt.getTime()).toBe(before.updatedAt.getTime());
+    const unpinned = await history.updateConversation(id, me, { title: 'Newer', pinnedAt: null });
+    expect(unpinned).toMatchObject({ title: 'Newer', pinnedAt: null });
 
     expect(await history.deleteConversation(id, me)).toBe(true);
     expect(await prisma.modelRun.count({ where: { conversationId: id } })).toBe(0);

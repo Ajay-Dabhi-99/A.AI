@@ -53,6 +53,8 @@ export interface AttachmentRepository {
   listForMessages(messageIds: string[]): Promise<AttachmentRecord[]>;
   /** Storage keys of every image sent in one of the user's conversations. */
   storageKeysForConversation(conversationId: string, userId: string): Promise<string[]>;
+  /** Images generated in a chat (MODEL-065); their rows outlive the job rows otherwise. */
+  generatedIdsForConversation(conversationId: string, userId: string): Promise<string[]>;
   /** Uploads never sent with a message, created before `before`. */
   listUnattachedBefore(before: Date, limit: number): Promise<AttachmentRecord[]>;
   deleteMany(ids: string[]): Promise<number>;
@@ -88,10 +90,21 @@ export function createPrismaAttachmentRepository(prisma: PrismaClient): Attachme
     storageKeysForConversation: async (conversationId, userId) =>
       (
         await prisma.attachment.findMany({
-          where: { userId, message: { conversationId } },
+          where: {
+            userId,
+            OR: [{ message: { conversationId } }, { job: { conversationId } }],
+          },
           select: { storageKey: true },
         })
       ).map((row) => row.storageKey),
+
+    generatedIdsForConversation: async (conversationId, userId) =>
+      (
+        await prisma.attachment.findMany({
+          where: { userId, job: { conversationId } },
+          select: { id: true },
+        })
+      ).map((row) => row.id),
 
     listUnattachedBefore: (before, limit) =>
       prisma.attachment.findMany({

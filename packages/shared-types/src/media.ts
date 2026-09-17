@@ -17,6 +17,8 @@ export type MediaJob = {
   errorCode: string | null;
   /** The generated file, once the job completed. */
   attachment: Attachment | null;
+  /** The chat it was created in (MODEL-065); null when started elsewhere. */
+  conversationId: string | null;
   createdAt: string;
   completedAt: string | null;
 };

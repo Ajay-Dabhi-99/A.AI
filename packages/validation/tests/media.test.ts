@@ -3,6 +3,7 @@ import {
   attachmentSchema,
   audioStatusSchema,
   jobListQuerySchema,
+  mediaGenerateRequestSchema,
   mediaJobSchema,
   parseJobStreamEvent,
   transcriptionQuerySchema,
@@ -18,6 +19,7 @@ const job = {
   progress: 0.4,
   errorCode: null,
   attachment: null,
+  conversationId: null,
   createdAt: '2026-09-17T10:00:00.000Z',
   completedAt: null,
 };
@@ -28,6 +30,27 @@ describe('media job contracts', () => {
     expect(parseJobStreamEvent('ping', JSON.stringify(job))).toBeNull();
     expect(parseJobStreamEvent('job', '{not json')).toBeNull();
     expect(parseJobStreamEvent('job', JSON.stringify({ ...job, progress: 1.5 }))).toBeNull();
+  });
+
+  it('reads the chat a job belongs to, defaulting to none for older APIs', () => {
+    const { conversationId: _omitted, ...older } = job;
+    expect(mediaJobSchema.parse(older).conversationId).toBeNull();
+    expect(mediaJobSchema.parse({ ...job, conversationId: 'c1' }).conversationId).toBe('c1');
+  });
+
+  it('creates a job in an existing chat or a new one, and nothing else', () => {
+    const base = { provider: 'cloudflare', model: 'flux', prompt: 'a boat' };
+    expect(mediaGenerateRequestSchema.parse(base)).toEqual(base);
+    expect(
+      mediaGenerateRequestSchema.parse({ ...base, conversationId: 'new' }).conversationId,
+    ).toBe('new');
+    const id = '3f1b8e8a-2d7b-4b8f-9d2a-6f0c1e2b3a4d';
+    expect(mediaGenerateRequestSchema.parse({ ...base, conversationId: id }).conversationId).toBe(
+      id,
+    );
+    expect(mediaGenerateRequestSchema.safeParse({ ...base, conversationId: 'old' }).success).toBe(
+      false,
+    );
   });
 
   it('accepts generated videos without dimensions', () => {

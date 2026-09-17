@@ -60,3 +60,31 @@ describe('image storage settings (Phase 8)', () => {
     ).not.toHaveLength(0);
   });
 });
+
+describe('image generation settings (Cloudflare Workers AI)', () => {
+  it('is off by default and reads both values when set', () => {
+    const off = parseServerEnv(valid);
+    expect(off.CLOUDFLARE_ACCOUNT_ID).toBeUndefined();
+    expect(off.CLOUDFLARE_AI_API_TOKEN).toBeUndefined();
+    const on = parseServerEnv({
+      ...valid,
+      CLOUDFLARE_ACCOUNT_ID: ' account-1 ',
+      CLOUDFLARE_AI_API_TOKEN: 'token-1',
+    });
+    expect([on.CLOUDFLARE_ACCOUNT_ID, on.CLOUDFLARE_AI_API_TOKEN]).toEqual([
+      'account-1',
+      'token-1',
+    ]);
+  });
+
+  it('requires the account id and token together, and never echoes values', () => {
+    const issues = issuesFor({ ...valid, CLOUDFLARE_AI_API_TOKEN: 'secret-cloudflare-token' });
+    expect(issues).toEqual([
+      'CLOUDFLARE_ACCOUNT_ID: set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_AI_API_TOKEN together (or neither)',
+    ]);
+    expect(issues.join(' ')).not.toContain('secret-cloudflare-token');
+    expect(issuesFor({ ...valid, CLOUDFLARE_ACCOUNT_ID: 'account-1' })).toEqual([
+      'CLOUDFLARE_AI_API_TOKEN: set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_AI_API_TOKEN together (or neither)',
+    ]);
+  });
+});

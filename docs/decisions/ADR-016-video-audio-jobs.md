@@ -64,7 +64,7 @@ The web app records at most 120 seconds with `MediaRecorder`. The transcript goe
 
 ## Consequences
 
-- Voice input needs `GROQ_API_KEY`; the current deployment has none, so it stays off until one is added.
+- Voice input needs `GROQ_API_KEY`. The key was added on 2026-09-17 and a real transcription passed; without the key the microphone button stays hidden.
 - Video generation stays invisible until a provider with video quota is registered (`videoProviders`).
 - Read-aloud voice quality varies by device and browser.
 - Earlier Phase 8 image routes keep working; image jobs gained cancel, progress, recovery and resume.

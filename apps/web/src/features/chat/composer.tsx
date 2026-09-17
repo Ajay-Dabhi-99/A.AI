@@ -1,25 +1,13 @@
 import type { AIModel, Attachment, AttachmentLimits, ProviderInfo } from '@a-ai/shared-types';
-import { CHAT_MESSAGE_MAX_LENGTH } from '@a-ai/validation';
-import { ArrowUp, ImagePlus, Loader2, Mic, Square, X } from 'lucide-react';
+import { CHAT_MESSAGE_MAX_LENGTH, MEDIA_PROMPT_MAX_LENGTH } from '@a-ai/validation';
+import { ArrowUp, ImagePlus, Loader2, Mic, Sparkles, Square, X } from 'lucide-react';
 import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { Link } from 'react-router';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { ModelPicker } from './model-picker';
 import { useAttachmentDrafts } from './use-attachment-drafts';
 import { useVoiceInput } from './use-voice-input';
-
-function modelKey(model: Pick<AIModel, 'provider' | 'id'>): string {
-  return `${model.provider}::${model.id}`;
-}
 
 function clock(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
@@ -37,6 +25,7 @@ export function Composer({
   attachmentLimits,
   voice,
   isGuest = false,
+  imageCreation,
   footer,
 }: {
   models: AIModel[];
@@ -54,9 +43,14 @@ export function Composer({
   /** Voice input limits; absent when speech-to-text is off or the browser cannot record. */
   voice?: { maxBytes: number; maxSeconds: number } | undefined;
   isGuest?: boolean;
+  /** Offered to signed-in users while image generation is enabled (MODEL-065). */
+  imageCreation?: { modelName: string; onCreate: (prompt: string) => Promise<boolean> } | undefined;
   footer?: React.ReactNode;
 }) {
   const [draft, setDraft] = useState('');
+  const [imageMode, setImageMode] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const makingImage = imageMode && imageCreation !== undefined;
   const drafts = useAttachmentDrafts(attachmentLimits);
   const voiceInput = useVoiceInput({
     maxSeconds: voice?.maxSeconds ?? 120,
@@ -66,11 +60,16 @@ export function Composer({
       setDraft((current) => (current.trim() ? `${current.trimEnd()} ${text}` : text)),
   });
   const fileInput = useRef<HTMLInputElement>(null);
-  const tooLong = draft.length > CHAT_MESSAGE_MAX_LENGTH;
+  const recording = voiceInput.state === 'recording';
+  const maxLength = makingImage ? MEDIA_PROMPT_MAX_LENGTH : CHAT_MESSAGE_MAX_LENGTH;
+  const tooLong = draft.length > maxLength;
   const canAttach = attachmentLimits?.enabled === true;
   const readsImages = model?.supportsVision === true;
   const imagesBlocked = drafts.items.length > 0 && !readsImages;
+  const canCreateImage =
+    makingImage && !streaming && !creating && !tooLong && draft.trim().length > 0;
   const canSend =
+    !makingImage &&
     !disabled &&
     !streaming &&
     !tooLong &&
@@ -81,10 +80,18 @@ export function Composer({
     !imagesBlocked &&
     voiceInput.state === 'idle';
 
-  const providerIds = [...new Set(models.map((item) => item.provider))];
-
   async function submit(event?: FormEvent) {
     event?.preventDefault();
+    if (makingImage) {
+      if (!canCreateImage) return;
+      const prompt = draft.trim();
+      setDraft('');
+      setCreating(true);
+      const started = await imageCreation.onCreate(prompt);
+      setCreating(false);
+      if (!started) setDraft(prompt);
+      return;
+    }
     if (!canSend) return;
     const text = draft.trim();
     const images = drafts.ready;
@@ -102,7 +109,6 @@ export function Composer({
   }
 
   const failures = drafts.items.filter((item) => item.status === 'failed');
-  const recording = voiceInput.state === 'recording';
 
   return (
     <form
@@ -177,19 +183,36 @@ export function Composer({
         onKeyDown={onKeyDown}
         rows={Math.min(8, Math.max(2, draft.split('\n').length))}
         placeholder={
-          disabled
-            ? 'Chat is unavailable right now'
-            : voiceInput.state === 'transcribing'
-              ? 'Transcribing your recording…'
-              : 'Ask anything…'
+          makingImage
+            ? 'Describe the image you want to create…'
+            : disabled
+              ? 'Chat is unavailable right now'
+              : voiceInput.state === 'transcribing'
+                ? 'Transcribing your recording…'
+                : 'Ask anything…'
         }
-        disabled={disabled}
+        disabled={disabled && !makingImage}
         aria-invalid={tooLong ? true : undefined}
         className="block w-full resize-none bg-transparent px-2 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none disabled:cursor-not-allowed"
       />
       <div className="flex items-center justify-between gap-2 px-1 pt-1">
         <div className="flex min-w-0 items-center gap-2">
-          {canAttach && (
+          {imageCreation && (
+            <Button
+              type="button"
+              size="sm"
+              variant={makingImage ? 'secondary' : 'ghost'}
+              aria-pressed={makingImage}
+              title={makingImage ? 'Back to chat' : 'Create an image'}
+              disabled={streaming || creating || drafts.items.length > 0 || recording}
+              onClick={() => setImageMode((on) => !on)}
+              className={cn('h-9 gap-1.5 px-2.5', makingImage && 'image-mode-on')}
+            >
+              <Sparkles aria-hidden="true" />
+              Image
+            </Button>
+          )}
+          {canAttach && !makingImage && (
             <>
               <input
                 ref={fileInput}
@@ -224,7 +247,7 @@ export function Composer({
               </Button>
             </>
           )}
-          {voice && (
+          {voice && !makingImage && (
             <Button
               type="button"
               size="icon"
@@ -254,40 +277,19 @@ export function Composer({
               Recording {clock(voiceInput.seconds)} / {clock(voice.maxSeconds)}
             </span>
           )}
-          <Select
-            value={model ? modelKey(model) : ''}
-            onValueChange={(value) => {
-              const next = models.find((item) => modelKey(item) === value);
-              if (next) onSelectModel(next);
-            }}
-            disabled={streaming || models.length === 0}
-          >
-            <SelectTrigger
-              id="chat-model"
-              size="sm"
-              aria-label="Model"
-              className="w-auto max-w-[14rem] bg-surface-muted"
-            >
-              <SelectValue placeholder="Choose a model" />
-            </SelectTrigger>
-            {/* The composer sits at the bottom of the screen, so the list opens upward. */}
-            <SelectContent side="top" align="start" className="min-w-56">
-              {providerIds.map((provider) => (
-                <SelectGroup key={provider}>
-                  <SelectLabel>
-                    {providers.find((item) => item.id === provider)?.name ?? provider}
-                  </SelectLabel>
-                  {models
-                    .filter((item) => item.provider === provider)
-                    .map((item) => (
-                      <SelectItem key={modelKey(item)} value={modelKey(item)}>
-                        {item.name}
-                      </SelectItem>
-                    ))}
-                </SelectGroup>
-              ))}
-            </SelectContent>
-          </Select>
+          {makingImage ? (
+            <span className="image-model-chip" title="Image model">
+              {imageCreation.modelName}
+            </span>
+          ) : (
+            <ModelPicker
+              models={models}
+              providers={providers}
+              model={model}
+              onSelect={onSelectModel}
+              disabled={streaming || models.length === 0}
+            />
+          )}
           {isGuest && readsImages && (
             <Link
               to="/signup"
@@ -296,11 +298,11 @@ export function Composer({
               Sign up to attach images
             </Link>
           )}
-          {(tooLong || draft.length > CHAT_MESSAGE_MAX_LENGTH * 0.9) && (
+          {(tooLong || draft.length > maxLength * 0.9) && (
             <span
               className={cn('font-mono text-xs', tooLong ? 'text-danger' : 'text-muted-foreground')}
             >
-              {draft.length.toLocaleString()} / {CHAT_MESSAGE_MAX_LENGTH.toLocaleString()}
+              {draft.length.toLocaleString()} / {maxLength.toLocaleString()}
             </span>
           )}
         </div>
@@ -313,6 +315,10 @@ export function Composer({
             aria-label="Stop generating"
           >
             <Square className="fill-current" />
+          </Button>
+        ) : makingImage ? (
+          <Button type="submit" size="icon" disabled={!canCreateImage} aria-label="Create image">
+            {creating ? <Loader2 className="animate-spin" /> : <Sparkles />}
           </Button>
         ) : (
           <Button type="submit" size="icon" disabled={!canSend} aria-label="Send message">

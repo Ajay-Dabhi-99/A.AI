@@ -15,6 +15,7 @@ export type GenerationJobRecord = {
   status: JobStatusValue;
   errorCode: string | null;
   attachmentId: string | null;
+  conversationId: string | null;
   createdAt: Date;
   startedAt: Date | null;
   completedAt: Date | null;
@@ -36,6 +37,7 @@ export interface GenerationJobRepository {
     provider: string;
     model: string;
     prompt: string;
+    conversationId?: string | null;
   }): Promise<GenerationJobRecord>;
   /** Null when it does not exist or belongs to someone else. */
   findForUser(id: string, userId: string): Promise<GenerationJobRecord | null>;
@@ -45,6 +47,8 @@ export interface GenerationJobRepository {
     kind: MediaJobKindValue | null,
     limit: number,
   ): Promise<GenerationJobRecord[]>;
+  /** The owner's jobs started from one chat, oldest first. */
+  listForConversation(conversationId: string, userId: string): Promise<GenerationJobRecord[]>;
   /** QUEUED → PROCESSING. False when another worker claimed it first. */
   claim(id: string, at: Date): Promise<boolean>;
   /** PROCESSING → COMPLETED. False when the job was cancelled or failed meanwhile. */
@@ -68,6 +72,12 @@ export function createPrismaGenerationJobRepository(prisma: PrismaClient): Gener
         where: { userId, ...(kind ? { kind } : {}) },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: limit,
+      }),
+
+    listForConversation: (conversationId, userId) =>
+      prisma.generationJob.findMany({
+        where: { conversationId, userId },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       }),
 
     claim: async (id, at) =>

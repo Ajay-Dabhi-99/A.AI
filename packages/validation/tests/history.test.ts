@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { conversationRenameSchema, historyQuerySchema, usageQuerySchema } from '../src/index.js';
+import { conversationUpdateSchema, historyQuerySchema, usageQuerySchema } from '../src/index.js';
 
 describe('historyQuerySchema', () => {
   it('applies defaults and turns a blank search into no search', () => {
@@ -37,16 +37,26 @@ describe('historyQuerySchema', () => {
   });
 });
 
-describe('conversationRenameSchema', () => {
+describe('conversationUpdateSchema', () => {
   it('trims the title, requires one, and rejects extra fields', () => {
-    expect(conversationRenameSchema.parse({ title: '  Trip plans  ' })).toEqual({
+    expect(conversationUpdateSchema.parse({ title: '  Trip plans  ' })).toEqual({
       title: 'Trip plans',
     });
-    expect(conversationRenameSchema.safeParse({ title: '   ' }).success).toBe(false);
-    expect(conversationRenameSchema.safeParse({ title: 'x'.repeat(121) }).success).toBe(false);
-    expect(conversationRenameSchema.safeParse({ title: 'ok', userId: 'someone' }).success).toBe(
+    expect(conversationUpdateSchema.safeParse({ title: '   ' }).success).toBe(false);
+    expect(conversationUpdateSchema.safeParse({ title: 'x'.repeat(121) }).success).toBe(false);
+    expect(conversationUpdateSchema.safeParse({ title: 'ok', userId: 'someone' }).success).toBe(
       false,
     );
+  });
+
+  it('accepts a pinned state alone or with a title, but not an empty update', () => {
+    expect(conversationUpdateSchema.parse({ pinned: true })).toEqual({ pinned: true });
+    expect(conversationUpdateSchema.parse({ title: 'Trip', pinned: false })).toEqual({
+      title: 'Trip',
+      pinned: false,
+    });
+    expect(conversationUpdateSchema.safeParse({}).success).toBe(false);
+    expect(conversationUpdateSchema.safeParse({ pinned: 'yes' }).success).toBe(false);
   });
 });
 

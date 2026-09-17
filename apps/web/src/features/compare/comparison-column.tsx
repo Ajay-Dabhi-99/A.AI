@@ -4,6 +4,8 @@ import { Alert } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Markdown } from '@/features/chat/markdown';
+import { ThinkingIndicator } from '@/features/chat/thinking-indicator';
+import { useSmoothText } from '@/features/chat/use-smooth-text';
 import { cn } from '@/lib/utils';
 import { isActive, type ColumnStatus, type ComparisonColumnState } from './use-comparison';
 
@@ -49,11 +51,13 @@ export function ComparisonColumn({
 }) {
   const status = STATUS[column.status];
   const failed = column.status === 'failed' || column.status === 'timeout';
+  const smooth = useSmoothText(column.text, column.status === 'streaming');
 
   let body: React.ReactNode;
   if (column.status === 'waiting') {
     body = (
-      <div className="space-y-2" role="status" aria-label="Waiting for the first token">
+      <div className="space-y-3" role="status" aria-label="Waiting for the first token">
+        <ThinkingIndicator announce={false} />
         <div className="h-3 w-4/5 animate-shimmer rounded bg-[linear-gradient(90deg,var(--surface-muted),var(--border),var(--surface-muted))] bg-[length:200%_100%]" />
         <div className="h-3 w-3/5 animate-shimmer rounded bg-[linear-gradient(90deg,var(--surface-muted),var(--border),var(--surface-muted))] bg-[length:200%_100%]" />
       </div>
@@ -71,8 +75,8 @@ export function ComparisonColumn({
     );
   } else if (column.text) {
     body = (
-      <div className={cn(column.status === 'streaming' && 'streaming-caret')}>
-        <Markdown>{column.text}</Markdown>
+      <div className={cn(smooth.typing && 'streaming-caret')}>
+        <Markdown streaming={smooth.typing}>{smooth.text}</Markdown>
       </div>
     );
   } else {

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { chatRequestSchema, parseChatStreamEvent } from '../src/index.js';
+import {
+  chatRequestSchema,
+  conversationListResponseSchema,
+  parseChatStreamEvent,
+} from '../src/index.js';
 
 const base = { provider: 'groq', model: 'openai/gpt-oss-20b' };
 
@@ -48,5 +52,27 @@ describe('parseChatStreamEvent', () => {
     expect(parseChatStreamEvent('toString', '{}')).toBeNull();
     expect(parseChatStreamEvent('message.delta', '{oops')).toBeNull();
     expect(parseChatStreamEvent('message.delta', '{"runId":"r1"}')).toBeNull();
+  });
+});
+
+describe('conversationListResponseSchema', () => {
+  it('reads pinned chats, and treats a missing pin as unpinned', () => {
+    const base = {
+      id: 'c1',
+      title: 'Trip',
+      createdAt: '2026-09-14T09:00:00.000Z',
+      updatedAt: '2026-09-14T09:05:00.000Z',
+    };
+    const parsed = conversationListResponseSchema.parse({
+      conversations: [{ ...base, pinnedAt: '2026-09-17T12:00:00.000Z' }, base],
+    });
+    expect(parsed.conversations.map((chat) => chat.pinnedAt)).toEqual([
+      '2026-09-17T12:00:00.000Z',
+      null,
+    ]);
+    expect(
+      conversationListResponseSchema.safeParse({ conversations: [{ ...base, pinnedAt: 5 }] })
+        .success,
+    ).toBe(false);
   });
 });

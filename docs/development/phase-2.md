@@ -34,6 +34,10 @@ Run on 2026-09-14, Windows 11, Node 22.16.0, pnpm 10.34.5.
 | Real provider call per provider                 | key + one message                   | **NOT RUN: no keys**                                                                                             |
 | E2E: guest chat → sign up → chat migrated       | Playwright                          | **NOT STARTED**                                                                                                  |
 
+## Real provider calls (2026-09-17)
+
+With `GROQ_API_KEY` and `OPENROUTER_API_KEY` added next to `GEMINI_API_KEY`, the API enabled all three providers with no code change (`/ready` → `configured: ["openrouter", "gemini", "groq"]`). One short chat per provider passed; OpenRouter's free models needed the retry and fallback paths because of upstream rate limits and overload. Details: [roadmap, provider checks](roadmap.md#provider-checks-2026-09-17).
+
 ## Defects found and fixed during Phase 2
 
 | Severity        | Issue                                                                                                                                    | Fix                                                                            |

@@ -1,11 +1,11 @@
 import type {
   ComparisonDetail,
-  ConversationRenameResponse,
+  ConversationUpdateResponse,
   ConversationRunsResponse,
   HistoryListResponse,
   UsageReport,
 } from '@a-ai/shared-types';
-import { conversationRenameSchema, historyQuerySchema, usageQuerySchema } from '@a-ai/validation';
+import { conversationUpdateSchema, historyQuerySchema, usageQuerySchema } from '@a-ai/validation';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireAdmin, requireUser } from '../../plugins/auth.js';
@@ -46,12 +46,12 @@ export async function historyRoutes(app: FastifyInstance): Promise<void> {
 
   app.patch(
     '/api/conversations/:id',
-    async (request, reply): Promise<ConversationRenameResponse> => {
+    async (request, reply): Promise<ConversationUpdateResponse> => {
       const { user } = await requireUser(request, reply);
       const id = idFrom(request.params, CONVERSATION_NOT_FOUND);
-      const { title } = conversationRenameSchema.parse(request.body ?? {});
+      const update = conversationUpdateSchema.parse(request.body ?? {});
       reply.header('cache-control', 'no-store');
-      return history.rename(user.id, id, title);
+      return history.updateConversation(user.id, id, update);
     },
   );
 

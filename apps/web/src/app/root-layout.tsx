@@ -1,10 +1,21 @@
-import { Suspense } from 'react';
+import { Suspense, useEffect } from 'react';
 import { Outlet, ScrollRestoration } from 'react-router';
 import { SiteFooter } from '@/components/layout/site-footer';
 import { SiteHeader } from '@/components/layout/site-header';
 import { PageSpinner } from '@/components/ui/spinner';
+import { preloadPages } from './page-loaders';
 
 export function RootLayout() {
+  useEffect(() => {
+    // After the first page is on screen, fetch the other pages' code in the background.
+    if (typeof window.requestIdleCallback === 'function') {
+      const handle = window.requestIdleCallback(preloadPages, { timeout: 4_000 });
+      return () => window.cancelIdleCallback(handle);
+    }
+    const timer = window.setTimeout(preloadPages, 1_500);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   return (
     <div className="flex min-h-svh flex-col">
       <a

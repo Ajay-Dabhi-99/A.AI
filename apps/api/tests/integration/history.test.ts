@@ -1,7 +1,8 @@
 import type { ChatStreamEvent, ComparisonStreamEvent } from '@a-ai/shared-types';
 import {
   comparisonDetailSchema,
-  conversationRenameResponseSchema,
+  conversationListResponseSchema,
+  conversationUpdateResponseSchema,
   conversationRunsResponseSchema,
   historyListResponseSchema,
   parseChatStreamEvent,
@@ -181,7 +182,7 @@ describe('history', () => {
         cookies,
       });
     const renamed = await rename(me, '  Kyoto trip  ');
-    expect(conversationRenameResponseSchema.parse(renamed.json()).conversation.title).toBe(
+    expect(conversationUpdateResponseSchema.parse(renamed.json()).conversation.title).toBe(
       'Kyoto trip',
     );
     expect((await rename(me, '   ')).statusCode).toBe(400);
@@ -200,6 +201,48 @@ describe('history', () => {
     expect(
       historyListResponseSchema.parse((await get(context, '/api/history', me)).json()).items,
     ).toEqual([]);
+  });
+
+  it('pins chats to the top of the list, and only the owner can', async () => {
+    const context = await setup();
+    const me = await signIn(context, 'me@example.com');
+    const other = await signIn(context, 'other@example.com');
+    const target = await chat(context, me, 'Pin me');
+    const second = await chat(context, me, 'Leave me');
+
+    const update = (cookies: Record<string, string>, payload: object) =>
+      context.app.inject({
+        method: 'PATCH',
+        url: `/api/conversations/${target}`,
+        headers: { origin: WEB_ORIGIN },
+        payload,
+        cookies,
+      });
+    const order = async () =>
+      conversationListResponseSchema
+        .parse((await get(context, '/api/conversations', me)).json())
+        .conversations.map((item) => [item.id, item.pinnedAt !== null]);
+
+    // Both chats are equally recent here, so only pinning decides the order.
+    expect((await order()).every(([, isPinned]) => !isPinned)).toBe(true);
+
+    const pinned = await update(me, { pinned: true });
+    expect(pinned.statusCode).toBe(200);
+    expect(conversationUpdateResponseSchema.parse(pinned.json()).conversation).toMatchObject({
+      id: target,
+      pinnedAt: expect.any(String),
+    });
+    expect(await order()).toEqual([
+      [target, true],
+      [second, false],
+    ]);
+
+    expect((await update(other, { pinned: false })).statusCode).toBe(404);
+    expect((await update(me, {})).statusCode).toBe(400);
+    expect((await update(me, { pinned: 'yes' })).statusCode).toBe(400);
+
+    expect((await update(me, { pinned: false })).statusCode).toBe(200);
+    expect((await order()).every(([, isPinned]) => !isPinned)).toBe(true);
   });
 
   it('reports usage to each user, and deployment totals only to admins', async () => {

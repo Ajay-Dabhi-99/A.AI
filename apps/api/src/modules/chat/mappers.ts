@@ -37,6 +37,7 @@ export function toConversationSummary(record: ConversationRecord): ConversationS
   return {
     id: record.id,
     title: record.title,
+    pinnedAt: record.pinnedAt?.toISOString() ?? null,
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
   };

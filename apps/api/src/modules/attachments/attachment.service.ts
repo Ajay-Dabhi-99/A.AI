@@ -270,6 +270,21 @@ export class AttachmentService {
     return this.#deps.repository.storageKeysForConversation(conversationId, userId);
   }
 
+  generatedIdsForConversation(conversationId: string, userId: string): Promise<string[]> {
+    return this.#deps.repository.generatedIdsForConversation(conversationId, userId);
+  }
+
+  /** Best effort, like `removeObjects`: rows whose objects are already gone. */
+  async removeRows(ids: string[], reason: string): Promise<void> {
+    if (ids.length === 0) return;
+    await this.#deps.repository.deleteMany(ids).catch((error: unknown) => {
+      this.#deps.logger.error(
+        { err: error, event: 'attachment.rows.remove.failed', reason, rows: ids.length },
+        'attachment rows could not be removed',
+      );
+    });
+  }
+
   /** Best effort: a failure is logged (with a count, never keys) and never thrown. */
   async removeObjects(keys: string[], reason: string): Promise<void> {
     if (keys.length === 0 || !this.enabled) return;

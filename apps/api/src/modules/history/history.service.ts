@@ -1,6 +1,6 @@
 import type {
   ComparisonDetail,
-  ConversationRenameResponse,
+  ConversationUpdateResponse,
   ConversationRunsResponse,
   HistoryItem,
   HistoryListResponse,
@@ -9,7 +9,7 @@ import type {
   UsageReport,
   UsageTotals,
 } from '@a-ai/shared-types';
-import type { HistoryQuery } from '@a-ai/validation';
+import type { ConversationUpdate, HistoryQuery } from '@a-ai/validation';
 import type { FastifyBaseLogger } from 'fastify';
 import { z } from 'zod';
 import type { ConversationRepository } from '../../repositories/conversation.repository.js';
@@ -38,7 +38,10 @@ export type UsageScopeInput = { kind: 'personal'; userId: string } | { kind: 'de
 export type HistoryServiceDeps = {
   history: HistoryRepository;
   conversations: ConversationRepository;
-  attachments: Pick<AttachmentService, 'keysForConversation' | 'removeObjects'>;
+  attachments: Pick<
+    AttachmentService,
+    'keysForConversation' | 'removeObjects' | 'generatedIdsForConversation' | 'removeRows'
+  >;
   clock: Clock;
   logger: FastifyBaseLogger;
 };
@@ -245,25 +248,39 @@ export class HistoryService {
     };
   }
 
-  async rename(
+  /** Renames and/or pins a chat. Pinning an already pinned chat moves it back to the top. */
+  async updateConversation(
     userId: string,
     conversationId: string,
-    title: string,
-  ): Promise<ConversationRenameResponse> {
-    const renamed = await this.#deps.history.renameConversation(conversationId, userId, title);
-    if (!renamed) throw new AppError('NOT_FOUND', 'This conversation does not exist.');
-    return { conversation: toConversationSummary(renamed) };
+    update: ConversationUpdate,
+  ): Promise<ConversationUpdateResponse> {
+    const updated = await this.#deps.history.updateConversation(conversationId, userId, {
+      ...(update.title === undefined ? {} : { title: update.title }),
+      ...(update.pinned === undefined
+        ? {}
+        : { pinnedAt: update.pinned ? this.#deps.clock.now() : null }),
+    });
+    if (!updated) throw new AppError('NOT_FOUND', 'This conversation does not exist.');
+    return { conversation: toConversationSummary(updated) };
   }
 
   async delete(userId: string, kind: HistoryKindValue, id: string): Promise<void> {
     // Image objects are listed before the rows (and their attachment rows) cascade away.
     const imageKeys =
       kind === 'conversation' ? await this.#deps.attachments.keysForConversation(id, userId) : [];
+    // Generated images belong to the chat's jobs, which cascade; their rows must go too.
+    const generatedIds =
+      kind === 'conversation'
+        ? await this.#deps.attachments.generatedIdsForConversation(id, userId)
+        : [];
     const deleted =
       kind === 'conversation'
         ? await this.#deps.history.deleteConversation(id, userId)
         : await this.#deps.history.deleteComparison(id, userId);
-    if (deleted) await this.#deps.attachments.removeObjects(imageKeys, 'conversation-deleted');
+    if (deleted) {
+      await this.#deps.attachments.removeObjects(imageKeys, 'conversation-deleted');
+      await this.#deps.attachments.removeRows(generatedIds, 'conversation-deleted');
+    }
     if (!deleted) {
       throw new AppError(
         'NOT_FOUND',

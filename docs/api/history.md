@@ -10,7 +10,7 @@ Signed-in users only: guests get `401 AUTH_REQUIRED` (their chats live in Redis 
 | ------ | ----------------------------- | ------ | ------------------------------ | -------------------------------------------- |
 | GET    | `/api/history`                | User   | `200 HistoryListResponse`      | Chats and comparisons, newest activity first |
 | GET    | `/api/conversations/:id/runs` | Owner  | `200 ConversationRunsResponse` | Every run of a chat, including failures      |
-| PATCH  | `/api/conversations/:id`      | Owner  | `200 { conversation }`         | Rename                                       |
+| PATCH  | `/api/conversations/:id`      | Owner  | `200 { conversation }`         | Rename and/or pin                            |
 | DELETE | `/api/conversations/:id`      | Owner  | `204`                          | Delete permanently with messages and runs    |
 | GET    | `/api/comparisons/:id`        | Owner  | `200 ComparisonDetail`         | Reopen a saved comparison                    |
 | DELETE | `/api/comparisons/:id`        | Owner  | `204`                          | Delete permanently with its runs             |
@@ -61,11 +61,35 @@ Signed-in users only: guests get `401 AUTH_REQUIRED` (their chats live in Redis 
 
 ## `PATCH /api/conversations/:id`
 
+Renames and/or pins a saved chat (MODEL-062). Send at least one field; unknown fields are rejected (`400`).
+
 ```json
-{ "title": "Autumn in Kyoto" }
+{ "title": "Autumn in Kyoto", "pinned": true }
 ```
 
-1–120 characters after trimming; unknown fields are rejected (`400`).
+| Field    | Rule                                                                                                              |
+| -------- | ----------------------------------------------------------------------------------------------------------------- |
+| `title`  | Optional. 1–120 characters after trimming                                                                         |
+| `pinned` | Optional boolean. `true` sets `pinnedAt` to now (pinning again moves the chat back to the top); `false` clears it |
+
+Neither change counts as activity: `updatedAt` stays the same. The response is the updated `ConversationSummary`:
+
+```json
+{
+  "conversation": {
+    "id": "…",
+    "title": "Autumn in Kyoto",
+    "pinnedAt": "2026-09-17T12:00:00.000Z",
+    "createdAt": "2026-09-14T09:00:00.000Z",
+    "updatedAt": "2026-09-14T09:05:00.000Z"
+  }
+}
+```
+
+| Status | Code               | When                                             |
+| ------ | ------------------ | ------------------------------------------------ |
+| 400    | `VALIDATION_ERROR` | Empty body, blank or long title, non-boolean pin |
+| 404    | `NOT_FOUND`        | Unknown, malformed or someone else's id          |
 
 ## `GET /api/usage` and `GET /api/admin/usage`
 

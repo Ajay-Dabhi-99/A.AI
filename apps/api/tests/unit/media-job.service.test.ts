@@ -9,6 +9,7 @@ import {
 import { createRedisStore } from '../../src/services/kv-store.js';
 import { RATE_LIMITS, RateLimiter } from '../../src/services/rate-limit.service.js';
 import { silentLogger, TestClock } from '../helpers/fakes.js';
+import { createMemoryConversations } from '../helpers/memory-conversations.js';
 import { ScriptedVideoProvider } from '../helpers/image-provider.js';
 import { png } from '../helpers/images.js';
 import { mp4 } from '../helpers/media.js';
@@ -54,11 +55,13 @@ function setup(provider: ScriptedVideoProvider, options: { timeoutMs?: number } 
     clock,
     logger,
   });
+  const conversations = createMemoryConversations();
   const service = new MediaJobService({
     kind: 'video',
     providers: [provider],
     jobs,
     attachments,
+    conversations,
     store,
     rateLimiter,
     rule: RATE_LIMITS.videoByUser,
@@ -66,7 +69,7 @@ function setup(provider: ScriptedVideoProvider, options: { timeoutMs?: number } 
     logger,
     timeoutMs: options.timeoutMs ?? TIMEOUT_MS,
   });
-  return { clock, storage, attachmentRows, jobs, service };
+  return { clock, storage, attachmentRows, jobs, conversations, service };
 }
 
 const input = { provider: 'reels', model: 'reel-1', prompt: 'a paper boat on a river' };
@@ -99,6 +102,51 @@ describe('MediaJobService (video)', () => {
       source: 'generated',
     });
     expect(storage.objects.size).toBe(1);
+  });
+
+  it('creates a job inside a chat, starting one named after the prompt when asked', async () => {
+    const provider = new ScriptedVideoProvider(async () => ({
+      mimeType: 'video/mp4',
+      data: mp4('isom'),
+    }));
+    const { service, conversations, clock } = setup(provider);
+
+    const first = (await service.start(USER, { ...input, conversationId: 'new' })).job;
+    const chat = conversations.data.conversations[0];
+    expect(chat).toMatchObject({ userId: USER, title: input.prompt });
+    expect(first.conversationId).toBe(chat?.id);
+
+    clock.advance(60_000);
+    const second = (await service.start(USER, { ...input, conversationId: chat!.id })).job;
+    expect(second.conversationId).toBe(chat?.id);
+    expect(conversations.data.conversations).toHaveLength(1);
+    expect(conversations.data.conversations[0]?.updatedAt.toISOString()).toBe(
+      '2026-09-17T10:01:00.000Z',
+    );
+
+    const outside = (await service.start(USER, input)).job;
+    expect(outside.conversationId).toBeNull();
+
+    await service.idle();
+    expect((await service.listForConversation(USER, chat!.id)).map((job) => job.id)).toEqual([
+      first.id,
+      second.id,
+    ]);
+    expect(await service.listForConversation('someone-else', chat!.id)).toEqual([]);
+  });
+
+  it("refuses another user's chat without creating anything", async () => {
+    const provider = new ScriptedVideoProvider(async () => ({
+      mimeType: 'video/mp4',
+      data: mp4('isom'),
+    }));
+    const { service, conversations, jobs } = setup(provider);
+    const theirs = await conversations.create({ userId: 'someone-else', title: 'Theirs' });
+
+    await expect(
+      service.start(USER, { ...input, conversationId: theirs.id }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(jobs.data).toHaveLength(0);
   });
 
   it('fails a job whose output is not a video, or is too large', async () => {

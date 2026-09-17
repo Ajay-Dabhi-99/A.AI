@@ -1,6 +1,6 @@
 import type {
   ComparisonDetail,
-  ConversationRenameResponse,
+  ConversationUpdateResponse,
   ConversationRunsResponse,
   HistoryItem,
   HistoryListResponse,
@@ -50,8 +50,8 @@ export const historyQuerySchema = z
 
 export type HistoryQuery = z.infer<typeof historyQuerySchema>;
 
-/** PATCH /api/conversations/:id */
-export const conversationRenameSchema = z
+/** PATCH /api/conversations/:id: rename, pin or unpin (at least one field). */
+export const conversationUpdateSchema = z
   .object({
     title: z
       .string()
@@ -60,11 +60,16 @@ export const conversationRenameSchema = z
       .max(
         CONVERSATION_TITLE_MAX_LENGTH,
         `Titles can be at most ${CONVERSATION_TITLE_MAX_LENGTH} characters`,
-      ),
+      )
+      .optional(),
+    pinned: z.boolean().optional(),
   })
-  .strict();
+  .strict()
+  .refine((body) => body.title !== undefined || body.pinned !== undefined, {
+    message: 'Send a title or a pinned state',
+  });
 
-export type ConversationRename = z.infer<typeof conversationRenameSchema>;
+export type ConversationUpdate = z.infer<typeof conversationUpdateSchema>;
 
 /** GET /api/usage and GET /api/admin/usage query string. */
 export const usageQuerySchema = z.object({
@@ -114,6 +119,8 @@ export const runDetailSchema = z.object({
 const conversationSummarySchema = z.object({
   id: z.string(),
   title: z.string(),
+  // Defaults to unpinned so the web app still reads an API from before MODEL-062.
+  pinnedAt: z.string().nullable().default(null),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -135,9 +142,9 @@ export const comparisonDetailSchema = z.object({
   ),
 }) satisfies z.ZodType<ComparisonDetail>;
 
-export const conversationRenameResponseSchema = z.object({
+export const conversationUpdateResponseSchema = z.object({
   conversation: conversationSummarySchema,
-}) satisfies z.ZodType<ConversationRenameResponse>;
+}) satisfies z.ZodType<ConversationUpdateResponse>;
 
 const usageTotalsShape = {
   runs: count,

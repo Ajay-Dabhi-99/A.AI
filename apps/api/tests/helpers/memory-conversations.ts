@@ -41,6 +41,7 @@ export function createMemoryConversations(): MemoryConversations {
       summary: null,
       summaryUpToMessageId: null,
       summaryUpdatedAt: null,
+      pinnedAt: null,
       createdAt: at,
       updatedAt: at,
     };
@@ -86,7 +87,11 @@ export function createMemoryConversations(): MemoryConversations {
     listForUser: async (userId, limit) =>
       data.conversations
         .filter((conversation) => conversation.userId === userId)
-        .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+        .sort(
+          (a, b) =>
+            (b.pinnedAt?.getTime() ?? -1) - (a.pinnedAt?.getTime() ?? -1) ||
+            b.updatedAt.getTime() - a.updatedAt.getTime(),
+        )
         .slice(0, limit)
         .map((conversation) => ({ ...conversation })),
 
@@ -95,6 +100,8 @@ export function createMemoryConversations(): MemoryConversations {
         .filter((message) => message.conversationId === conversationId)
         .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
         .map(withRun),
+
+    touch: async (id, at) => touch(id, at),
 
     addUserMessage: async (conversationId, content) => {
       const at = now();

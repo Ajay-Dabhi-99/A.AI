@@ -19,7 +19,7 @@ const conversationParamsSchema = z.object({ id: z.uuid() });
 
 export async function chatRoutes(app: FastifyInstance): Promise<void> {
   const { env, cookieNames } = app;
-  const { chat, conversations, guestChats, guests, attachments } = app.services;
+  const { chat, conversations, guestChats, guests, attachments, jobs } = app.services;
 
   /** Streams one answer as Server-Sent Events (docs/api/chat.md). */
   app.post('/api/chat', async (request, reply) => {
@@ -67,9 +67,19 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     const images = await attachments.forMessages(
       messages.filter((message) => message.role === 'USER').map((message) => message.id),
     );
+    const mediaJobs = (
+      await Promise.all(
+        Object.values(jobs.services).map((service) =>
+          service.listForConversation(user.id, conversation.id),
+        ),
+      )
+    )
+      .flat()
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     reply.header('cache-control', 'no-store');
     return {
       ...toConversationSummary(conversation),
+      mediaJobs,
       messages: messages.map((message) => {
         const sent = images.get(message.id);
         return sent ? { ...toChatMessage(message), attachments: sent } : toChatMessage(message);

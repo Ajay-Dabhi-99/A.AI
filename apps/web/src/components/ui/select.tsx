@@ -1,6 +1,6 @@
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { Check, ChevronDown, ChevronUp } from 'lucide-react';
-import type { ComponentProps } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 /** shadcn/ui Select on Radix: keyboard, screen reader and touch support built in. */
@@ -74,8 +74,15 @@ export function SelectLabel({ className, ...props }: ComponentProps<typeof Selec
 export function SelectItem({
   className,
   children,
+  leading,
+  description,
   ...props
-}: ComponentProps<typeof SelectPrimitive.Item>) {
+}: ComponentProps<typeof SelectPrimitive.Item> & {
+  /** Shown before the label (an icon or badge); not part of the selected value. */
+  leading?: ReactNode;
+  /** Shown under the label; not part of the selected value. */
+  description?: ReactNode;
+}) {
   return (
     <SelectPrimitive.Item
       className={cn(
@@ -89,7 +96,15 @@ export function SelectItem({
           <Check className="size-4 text-primary" aria-hidden="true" />
         </SelectPrimitive.ItemIndicator>
       </span>
-      <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+      {leading}
+      {description === undefined ? (
+        <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+      ) : (
+        <span className="flex min-w-0 flex-col gap-1">
+          <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+          {description}
+        </span>
+      )}
     </SelectPrimitive.Item>
   );
 }

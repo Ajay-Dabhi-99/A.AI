@@ -4,19 +4,21 @@ import type {
   AttachmentLimits,
   ChatContextInfo,
   ChatMessage,
+  MediaJob,
   ProviderInfo,
   QuotaSummary,
 } from '@a-ai/shared-types';
-import { RotateCcw } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { ArrowDown, RotateCcw } from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { resolveModel, useModelStore } from '@/stores/model-store';
 import { useAudioStatus } from '@/hooks/use-audio-status';
+import { useMediaStatus } from '@/hooks/use-media-status';
 import { Composer } from './composer';
 import { MessageView } from './message-view';
-import { useChatSession } from './use-chat-session';
+import { useChatSession, withMediaJobs } from './use-chat-session';
 import { speechSupported, useReadAloud } from './use-read-aloud';
 import { voiceInputSupported } from './use-voice-input';
 
@@ -50,6 +52,7 @@ export function ChatPanel({
   isGuest,
   conversationId,
   initialMessages,
+  initialMediaJobs,
   models,
   providers,
   defaultModel,
@@ -60,6 +63,8 @@ export function ChatPanel({
   isGuest: boolean;
   conversationId: string | null;
   initialMessages: ChatMessage[];
+  /** Images created in this chat (MODEL-065). */
+  initialMediaJobs?: MediaJob[] | undefined;
   models: AIModel[];
   providers: ProviderInfo[];
   defaultModel: { provider: string; id: string } | null;
@@ -69,7 +74,7 @@ export function ChatPanel({
   onConversationStarted?: (conversationId: string) => void;
 }) {
   const session = useChatSession({
-    initialMessages,
+    initialMessages: withMediaJobs(initialMessages, initialMediaJobs ?? []),
     conversationId,
     isGuest,
     ...(onConversationStarted ? { onConversationStarted } : {}),
@@ -78,7 +83,11 @@ export function ChatPanel({
   const select = useModelStore((state) => state.select);
   const model = resolveModel(models, selected, defaultModel);
   const listRef = useRef<HTMLDivElement>(null);
+  const [awayFromBottom, setAwayFromBottom] = useState(false);
   const audio = useAudioStatus();
+  // Signed-in users can create images right here when image generation is enabled.
+  const imageStatus = useMediaStatus('image');
+  const imageModel = !isGuest && imageStatus.data?.enabled ? imageStatus.data.models[0] : undefined;
   const readAloud = useReadAloud();
   const canSpeak = speechSupported();
   const transcription = audio.data?.transcription;
@@ -87,13 +96,57 @@ export function ChatPanel({
       ? { maxBytes: transcription.maxBytes, maxSeconds: transcription.maxDurationSeconds }
       : undefined;
 
+  const contentRef = useRef<HTMLDivElement>(null);
+  /** Whether new content should keep the view pinned to the bottom. */
+  const stickRef = useRef(true);
+  const lastScrollTopRef = useRef(0);
   const lastMessage = session.messages.at(-1);
+
+  // A new answer starting (send or retry) always brings the view down to it,
+  // even if the reader had scrolled up, before the browser paints. The question
+  // and its pending answer are added together, so the answer marks the send.
+  // A new answer or a newly requested image.
+  const pendingKey =
+    lastMessage?.pending || lastMessage?.mediaJob ? (lastMessage.key ?? lastMessage.id) : null;
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list || !pendingKey) return;
+    stickRef.current = true;
+    list.scrollTop = list.scrollHeight;
+    lastScrollTopRef.current = list.scrollTop;
+    setAwayFromBottom(false);
+  }, [pendingKey]);
+
+  // Follow the answer as it types: pin to the bottom whenever the content grows.
   useEffect(() => {
     const list = listRef.current;
+    const content = contentRef.current;
+    if (!list || !content || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      if (!stickRef.current) return;
+      list.scrollTop = list.scrollHeight;
+      lastScrollTopRef.current = list.scrollTop;
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, []);
+
+  const onListScroll = () => {
+    const list = listRef.current;
     if (!list) return;
-    const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 160;
-    if (nearBottom || lastMessage?.role === 'user') list.scrollTop = list.scrollHeight;
-  }, [lastMessage?.id, lastMessage?.content, lastMessage?.role]);
+    const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
+    // Only the reader scrolling up stops the follow; growing content never does.
+    if (list.scrollTop < lastScrollTopRef.current - 2) stickRef.current = false;
+    if (distance < 80) stickRef.current = true;
+    lastScrollTopRef.current = list.scrollTop;
+    setAwayFromBottom(distance > 240);
+  };
+  const scrollToBottom = () => {
+    const list = listRef.current;
+    if (!list) return;
+    stickRef.current = true;
+    list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+  };
 
   const send = (text: string, attachments: Attachment[] = []) =>
     model ? session.send(model, text, attachments) : Promise.resolve(false);
@@ -101,50 +154,72 @@ export function ChatPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-1 py-4" aria-live="polite">
-        {session.messages.length === 0 ? (
-          <div className="mx-auto flex max-w-xl flex-col items-center py-12 text-center">
-            <h1 className="text-2xl font-semibold tracking-tight">What would you like to ask?</h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {isGuest
-                ? 'You are chatting as a guest. Your chat is kept for a day; create an account to save it.'
-                : 'Your conversations are saved to your account.'}
-            </p>
-            {models.length > 0 && (
-              <div className="mt-8 grid w-full gap-2">
-                {SUGGESTIONS.map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    type="button"
-                    disabled={session.streaming}
-                    onClick={() => void send(suggestion)}
-                    className="rounded-xl border border-border bg-surface px-4 py-3 text-left text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div
+          ref={listRef}
+          onScroll={onListScroll}
+          className="scrollbar-none min-h-0 flex-1 overflow-y-auto px-1 pt-4 pb-10"
+          aria-live="polite"
+        >
+          <div ref={contentRef}>
+            {session.messages.length === 0 ? (
+              <div className="mx-auto flex max-w-xl flex-col items-center py-12 text-center">
+                <h1 className="text-2xl font-semibold tracking-tight">
+                  What would you like to ask?
+                </h1>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {isGuest
+                    ? 'You are chatting as a guest. Your chat is kept for a day; create an account to save it.'
+                    : 'Your conversations are saved to your account.'}
+                </p>
+                {models.length > 0 && (
+                  <div className="mt-8 grid w-full gap-2">
+                    {SUGGESTIONS.map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        disabled={session.streaming}
+                        onClick={() => void send(suggestion)}
+                        className="rounded-xl border border-border bg-surface px-4 py-3 text-left text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
+            ) : (
+              <ol className="mx-auto flex max-w-3xl flex-col gap-6">
+                {session.messages.map((message) => (
+                  <li key={message.key ?? message.id}>
+                    <MessageView
+                      message={message}
+                      models={models}
+                      imageModels={imageStatus.data?.models ?? []}
+                      speech={
+                        canSpeak && message.role === 'assistant'
+                          ? {
+                              speaking: readAloud.speakingId === message.id,
+                              onToggle: () => readAloud.toggle(message.id, message.content),
+                            }
+                          : undefined
+                      }
+                    />
+                  </li>
+                ))}
+              </ol>
             )}
           </div>
-        ) : (
-          <ol className="mx-auto flex max-w-3xl flex-col gap-6">
-            {session.messages.map((message) => (
-              <li key={message.id}>
-                <MessageView
-                  message={message}
-                  models={models}
-                  speech={
-                    canSpeak && message.role === 'assistant'
-                      ? {
-                          speaking: readAloud.speakingId === message.id,
-                          onToggle: () => readAloud.toggle(message.id, message.content),
-                        }
-                      : undefined
-                  }
-                />
-              </li>
-            ))}
-          </ol>
+        </div>
+        {awayFromBottom && (
+          <button
+            type="button"
+            onClick={scrollToBottom}
+            aria-label="Scroll to the latest message"
+            className="absolute bottom-3 left-1/2 inline-flex size-9 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-surface text-muted-foreground shadow-lg transition-colors hover:border-primary/40 hover:text-foreground"
+          >
+            <ArrowDown className="size-4" aria-hidden="true" />
+          </button>
         )}
       </div>
 
@@ -196,6 +271,14 @@ export function ChatPanel({
           attachmentLimits={attachmentLimits}
           voice={voice}
           isGuest={isGuest}
+          imageCreation={
+            imageModel
+              ? {
+                  modelName: imageModel.name,
+                  onCreate: (prompt) => session.createImage(imageModel, prompt),
+                }
+              : undefined
+          }
           footer={
             quota || session.context ? (
               <span>

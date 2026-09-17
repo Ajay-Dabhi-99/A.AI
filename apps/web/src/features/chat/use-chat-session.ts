@@ -3,20 +3,70 @@ import type {
   ChatContextInfo,
   ChatMessage,
   ChatStreamEvent,
+  ErrorCode,
+  MediaJob,
   RunError,
 } from '@a-ai/shared-types';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { ME_QUERY_KEY } from '@/hooks/use-me';
 import { ApiError, NetworkError } from '@/services/api';
+import { jobQueryKey } from '@/features/jobs/use-media-job';
 import { streamChat } from '@/services/chat';
+import { startMediaJob } from '@/services/jobs';
 import type { ModelRef } from '@/stores/model-store';
 
 export type UiMessage = ChatMessage & {
   pending?: boolean;
+  /** Stable React key: the id changes when the server confirms the answer. */
+  key?: string;
   /** Shown while waiting: the server is retrying after a temporary provider error. */
-  notice?: 'retrying' | null;
+  notice?: { code: ErrorCode } | null;
+  /** The user asked for an image with this message (MODEL-065). */
+  imagePrompt?: boolean;
+  /** An image created in the chat, shown in place of an answer. */
+  mediaJob?: MediaJob;
 };
+
+/** The two chat rows an image job appears as: the request and the image. */
+function imageRows(job: MediaJob): UiMessage[] {
+  return [
+    {
+      id: `image-prompt-${job.id}`,
+      role: 'user',
+      content: job.prompt,
+      createdAt: job.createdAt,
+      imagePrompt: true,
+    },
+    {
+      id: `image-${job.id}`,
+      role: 'assistant',
+      content: '',
+      createdAt: job.createdAt,
+      mediaJob: job,
+    },
+  ];
+}
+
+/** Saved messages and the chat's images in one timeline, oldest first. */
+export function withMediaJobs(messages: ChatMessage[], jobs: MediaJob[]): UiMessage[] {
+  if (jobs.length === 0) return messages;
+  const rows: { at: string; order: number; items: UiMessage[] }[] = [
+    ...messages.map((message, index) => ({
+      at: message.createdAt,
+      order: index,
+      items: [message],
+    })),
+    ...jobs.map((job, index) => ({
+      at: job.createdAt,
+      order: messages.length + index,
+      items: imageRows(job),
+    })),
+  ];
+  return rows
+    .sort((a, b) => a.at.localeCompare(b.at) || a.order - b.order)
+    .flatMap((row) => row.items);
+}
 
 export type ChatFailure = RunError & {
   /** True when the server had accepted the message, so retrying will not repeat it. */
@@ -31,13 +81,20 @@ export const CONVERSATIONS_QUERY_KEY = ['conversations'] as const;
  * is refreshed through TanStack Query when a run ends.
  */
 export function useChatSession(options: {
-  initialMessages: ChatMessage[];
+  initialMessages: UiMessage[];
   conversationId: string | null;
   isGuest: boolean;
   onConversationStarted?: (conversationId: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const [messages, setMessages] = useState<UiMessage[]>(options.initialMessages);
+  const [messages, setMessages] = useState<UiMessage[]>(() => {
+    // Saved images start from their loaded state instead of one request each.
+    for (const item of options.initialMessages) {
+      if (item.mediaJob)
+        queryClient.setQueryData(jobQueryKey(item.mediaJob.id), { job: item.mediaJob });
+    }
+    return options.initialMessages;
+  });
   const [streaming, setStreaming] = useState(false);
   const [failure, setFailure] = useState<ChatFailure | null>(null);
   /** How the most recent request's context was built (Phase 5). */
@@ -75,6 +132,7 @@ export function useChatSession(options: {
         : []),
       {
         id: answerId,
+        key: answerId,
         role: 'assistant',
         content: '',
         createdAt: now,
@@ -100,7 +158,7 @@ export function useChatSession(options: {
           options.onConversationStarted?.(conversationId);
         }
       } else if (event.event === 'message.retry') {
-        updateAnswer((answer) => ({ ...answer, notice: 'retrying' }));
+        updateAnswer((answer) => ({ ...answer, notice: { code: event.data.code } }));
       } else if (event.event === 'message.fallback') {
         const { to } = event.data;
         updateAnswer((answer) => ({
@@ -200,9 +258,43 @@ export function useChatSession(options: {
     }
   }
 
+  /** Starts an image inside this chat (signed-in users); a new chat is created when needed. */
+  async function createImage(
+    model: { provider: string; model: string },
+    prompt: string,
+  ): Promise<boolean> {
+    setFailure(null);
+    try {
+      const { job } = await startMediaJob('image', {
+        provider: model.provider,
+        model: model.model,
+        prompt,
+        conversationId: conversationRef.current ?? 'new',
+      });
+      queryClient.setQueryData(jobQueryKey(job.id), { job });
+      if (job.conversationId && job.conversationId !== conversationRef.current) {
+        conversationRef.current = job.conversationId;
+        options.onConversationStarted?.(job.conversationId);
+      }
+      setMessages((current) => [...current, ...imageRows(job)]);
+      void queryClient.invalidateQueries({ queryKey: CONVERSATIONS_QUERY_KEY });
+      return true;
+    } catch (error) {
+      setFailure({
+        code: error instanceof ApiError ? error.code : 'INTERNAL_ERROR',
+        message:
+          error instanceof Error ? error.message : 'The image could not be started. Try again.',
+        retryable: error instanceof ApiError ? error.retryable : true,
+        accepted: false,
+      });
+      return false;
+    }
+  }
+
   return {
     messages,
     streaming,
+    createImage,
     failure,
     context,
     /** Resolves false when the message was rejected before the answer started (the draft should be restored). */

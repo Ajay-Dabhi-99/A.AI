@@ -12,7 +12,7 @@ import type {
   ProviderInfo,
 } from '@a-ai/shared-types';
 import { z } from 'zod';
-import { ATTACHMENTS_PER_MESSAGE_MAX, attachmentSchema } from './attachments.js';
+import { ATTACHMENTS_PER_MESSAGE_MAX, attachmentSchema, mediaJobSchema } from './attachments.js';
 import { errorCodeSchema } from './errors.js';
 
 export const CHAT_MESSAGE_MAX_LENGTH = 16_000;
@@ -101,6 +101,8 @@ export const chatMessageSchema = z.object({
 const conversationSummarySchema = z.object({
   id: z.string(),
   title: z.string(),
+  // Defaults to unpinned so the web app still reads an API from before MODEL-062.
+  pinnedAt: z.string().nullable().default(null),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -111,6 +113,8 @@ export const conversationListResponseSchema = z.object({
 
 export const conversationDetailSchema = conversationSummarySchema.extend({
   messages: z.array(chatMessageSchema),
+  // Defaults to none so the web app still reads an API from before MODEL-065.
+  mediaJobs: z.array(mediaJobSchema).default([]),
 }) satisfies z.ZodType<ConversationDetail>;
 
 export const guestConversationResponseSchema = z.object({

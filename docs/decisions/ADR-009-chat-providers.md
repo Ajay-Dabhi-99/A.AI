@@ -65,4 +65,4 @@ Quota counters originally used `PEXPIREAT` with an absolute timestamp from the A
 
 - Adding an OpenAI-compatible provider is a catalog entry and a key, not new code.
 - Model IDs are the most perishable part of the system; `CATALOG_CHECKED_ON` records when they were verified.
-- No real provider call has been made yet. The first run with keys must confirm Gemini limits and each provider's usage reporting.
+- Real calls were made on 2026-09-17 with all three keys ([roadmap](../development/roadmap.md#provider-checks-2026-09-17)): Groq and OpenRouter report provider token usage; free OpenRouter models are regularly rate-limited or overloaded upstream, which retry and fallback absorb. Gemini's key stays rate-limited, so Gemini checks remain single deliberate calls.

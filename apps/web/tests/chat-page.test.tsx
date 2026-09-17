@@ -121,6 +121,10 @@ function typeAndSend(text: string) {
   fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
 }
 
+/** Matches a paragraph by its whole text; streaming answers wrap each word in its own span. */
+const paragraphText = (text: string) => (_: string, element: Element | null) =>
+  element?.tagName === 'P' && element.textContent === text;
+
 describe('chat page as a guest', () => {
   it('streams an answer, renders Markdown and shows the daily allowance', async () => {
     const api = mockApi(
@@ -289,6 +293,28 @@ describe('chat page as a guest', () => {
     expect(screen.getAllByText('Are you there?')).toHaveLength(1);
   });
 
+  it('jumps to the newest message when sending after scrolling up', async () => {
+    mockApi(
+      guestRoutes({
+        'POST /api/chat': (init) =>
+          sse([START, ['message.delta', { runId: 'r1', text: 'Hi' }]], init, { hang: true }),
+      }),
+    );
+    const { container } = renderApp('/chat');
+    await screen.findByLabelText('Message');
+
+    const list = container.querySelector<HTMLElement>('[aria-live="polite"]');
+    if (!list) throw new Error('chat list not found');
+    Object.defineProperty(list, 'scrollHeight', { configurable: true, value: 5_000 });
+    Object.defineProperty(list, 'clientHeight', { configurable: true, value: 500 });
+    list.scrollTop = 1_000;
+    fireEvent.scroll(list);
+
+    typeAndSend('A follow-up question');
+
+    await waitFor(() => expect(list.scrollTop).toBe(5_000));
+  });
+
   it('stops a streaming answer and keeps what arrived', async () => {
     mockApi(
       guestRoutes({
@@ -302,7 +328,7 @@ describe('chat page as a guest', () => {
     await screen.findByLabelText('Message');
 
     typeAndSend('Tell me a long story');
-    expect(await screen.findByText('Partial answer')).toBeInTheDocument();
+    expect(await screen.findByText(paragraphText('Partial answer'))).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Stop generating' }));
 
@@ -376,6 +402,7 @@ describe('chat page for a signed-in user', () => {
             {
               id: conversationId,
               title: 'Vector databases',
+              pinnedAt: null,
               createdAt: '2026-09-14T09:00:00.000Z',
               updatedAt: '2026-09-14T09:05:00.000Z',
             },
@@ -385,6 +412,7 @@ describe('chat page for a signed-in user', () => {
         jsonResponse({
           id: conversationId,
           title: 'Vector databases',
+          pinnedAt: null,
           createdAt: '2026-09-14T09:00:00.000Z',
           updatedAt: '2026-09-14T09:05:00.000Z',
           messages: [
@@ -437,6 +465,335 @@ describe('chat page for a signed-in user', () => {
       conversationId,
       message: 'Give an example',
     });
+  });
+
+  /** Opens a chat's ⋯ menu from the keyboard and picks an item. */
+  async function chooseFromMenu(sidebar: HTMLElement, title: string, item: string) {
+    fireEvent.keyDown(within(sidebar).getByRole('button', { name: `Options for “${title}”` }), {
+      key: 'Enter',
+    });
+    fireEvent.click(await screen.findByRole('menuitem', { name: item }));
+  }
+
+  const summary = (id: string, title: string, pinnedAt: string | null = null) => ({
+    id,
+    title,
+    pinnedAt,
+    createdAt: '2026-09-14T09:00:00.000Z',
+    updatedAt: '2026-09-14T09:05:00.000Z',
+  });
+
+  const imageStatus = () =>
+    jsonResponse({
+      enabled: true,
+      models: [
+        {
+          provider: 'cloudflare',
+          model: '@cf/black-forest-labs/flux-1-schnell',
+          name: 'FLUX.1 [schnell]',
+        },
+      ],
+    });
+
+  const imageJob = (overrides: Record<string, unknown> = {}) => ({
+    id: '7c1b8e8a-2d7b-4b8f-9d2a-6f0c1e2b3a4d',
+    kind: 'image',
+    status: 'queued',
+    provider: 'cloudflare',
+    model: '@cf/black-forest-labs/flux-1-schnell',
+    prompt: 'A paper boat at sunrise',
+    progress: null,
+    errorCode: null,
+    attachment: null,
+    conversationId,
+    createdAt: '2026-09-14T09:10:00.000Z',
+    completedAt: null,
+    ...overrides,
+  });
+
+  it('creates an image inside a new chat and shows it when it is ready', async () => {
+    const api = mockApi({
+      ...baseRoutes,
+      '/api/me': () => jsonResponse(userMe),
+      'GET /api/models': modelsRoute,
+      'GET /api/conversations': () => jsonResponse({ conversations: [] }),
+      'GET /api/image/status': imageStatus,
+      'POST /api/image/generate': () => jsonResponse({ job: imageJob() }, 202),
+      [`GET /api/jobs/${imageJob().id}/events`]: (init) =>
+        sse(
+          [
+            ['job', imageJob({ status: 'processing', progress: 0.1 })],
+            ['job', imageJob({ status: 'failed', errorCode: 'RATE_LIMITED' })],
+          ],
+          init,
+        ),
+    });
+    const { router } = renderApp('/chat');
+    await screen.findByLabelText('Message');
+
+    const toggle = await screen.findByRole('button', { name: 'Image' });
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('FLUX.1 [schnell]')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Model' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create image' })).toBeDisabled();
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Message' }), {
+      target: { value: '  A paper boat at sunrise  ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Create image' }));
+
+    await waitFor(() => expect(callsTo(api, 'POST /api/image/generate')).toHaveLength(1));
+    expect(JSON.parse(String(callsTo(api, 'POST /api/image/generate')[0]?.body))).toEqual({
+      provider: 'cloudflare',
+      model: '@cf/black-forest-labs/flux-1-schnell',
+      prompt: 'A paper boat at sunrise',
+      conversationId: 'new',
+    });
+    expect(await screen.findByText('Create image')).toBeInTheDocument();
+    expect(screen.getByText('A paper boat at sunrise')).toBeInTheDocument();
+    expect(
+      await screen.findByText('The free image allowance is used up for now. Try again later.'),
+    ).toBeInTheDocument();
+    expect(callsTo(api, 'POST /api/chat')).toHaveLength(0);
+    await waitFor(() => expect(window.location.pathname).toBe(`/chat/${conversationId}`));
+    expect(router.state.location.pathname).toBe('/chat');
+  });
+
+  it('shows the images a saved chat created, in order with its messages', async () => {
+    mockApi({
+      ...baseRoutes,
+      '/api/me': () => jsonResponse(userMe),
+      'GET /api/models': modelsRoute,
+      'GET /api/conversations': () => jsonResponse({ conversations: [] }),
+      'GET /api/image/status': imageStatus,
+      [`GET /api/conversations/${conversationId}`]: () =>
+        jsonResponse({
+          id: conversationId,
+          title: 'Boats',
+          pinnedAt: null,
+          createdAt: '2026-09-14T09:00:00.000Z',
+          updatedAt: '2026-09-14T09:20:00.000Z',
+          messages: [
+            {
+              id: 'm1',
+              role: 'user',
+              content: 'Name a famous boat',
+              createdAt: '2026-09-14T09:00:00.000Z',
+            },
+            {
+              id: 'm2',
+              role: 'assistant',
+              content: 'The Titanic.',
+              createdAt: '2026-09-14T09:00:02.000Z',
+            },
+            {
+              id: 'm3',
+              role: 'user',
+              content: 'And a small one?',
+              createdAt: '2026-09-14T09:20:00.000Z',
+            },
+          ],
+          mediaJobs: [imageJob({ status: 'cancelled', completedAt: '2026-09-14T09:11:00.000Z' })],
+        }),
+    });
+    renderApp(`/chat/${conversationId}`);
+
+    expect(await screen.findByText('Image creation was cancelled.')).toBeInTheDocument();
+    const items = screen.getAllByRole('listitem').map((item) => item.textContent ?? '');
+    const order = [
+      'Name a famous boat',
+      'The Titanic.',
+      'A paper boat at sunrise',
+      'Image creation was cancelled.',
+      'And a small one?',
+    ];
+    const positions = order.map((text) => items.findIndex((item) => item.includes(text)));
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+  });
+
+  it('offers no image button to guests', async () => {
+    const api = mockApi(guestRoutes({ 'GET /api/image/status': imageStatus }));
+    renderApp('/chat');
+    await screen.findByLabelText('Message');
+    await waitFor(() => expect(callsTo(api, 'GET /api/image/status').length).toBeGreaterThan(0));
+    expect(screen.queryByRole('button', { name: 'Image' })).not.toBeInTheDocument();
+  });
+
+  it('pins and renames chats from the options menu', async () => {
+    const tripId = '5a1b8e8a-2d7b-4b8f-9d2a-6f0c1e2b3a4d';
+    let chats = [
+      summary(conversationId, 'Vector databases'),
+      { ...summary(tripId, 'Trip ideas'), updatedAt: '2026-09-13T09:05:00.000Z' },
+    ];
+    const api = mockApi({
+      ...baseRoutes,
+      '/api/me': () => jsonResponse(userMe),
+      'GET /api/models': modelsRoute,
+      'GET /api/conversations': () =>
+        jsonResponse({
+          conversations: [...chats].sort(
+            (a, b) =>
+              (b.pinnedAt ?? '').localeCompare(a.pinnedAt ?? '') ||
+              b.updatedAt.localeCompare(a.updatedAt),
+          ),
+        }),
+      [`PATCH /api/conversations/${tripId}`]: (init) => {
+        const body = JSON.parse(String(init?.body)) as { title?: string; pinned?: boolean };
+        chats = chats.map((chat) =>
+          chat.id === tripId
+            ? {
+                ...chat,
+                ...(body.title === undefined ? {} : { title: body.title }),
+                ...(body.pinned === undefined
+                  ? {}
+                  : { pinnedAt: body.pinned ? '2026-09-15T10:00:00.000Z' : null }),
+              }
+            : chat,
+        );
+        return jsonResponse({ conversation: chats.find((chat) => chat.id === tripId) });
+      },
+    });
+    const patches = () => callsTo(api, `PATCH /api/conversations/${tripId}`);
+    renderApp('/chat');
+    const sidebar = await screen.findByRole('navigation', { name: 'Conversations' });
+    await within(sidebar).findByRole('link', { name: 'Trip ideas' });
+    expect(within(sidebar).queryByRole('region', { name: 'Pinned' })).not.toBeInTheDocument();
+
+    // The menu offers the three actions.
+    fireEvent.keyDown(within(sidebar).getByRole('button', { name: 'Options for “Trip ideas”' }), {
+      key: 'Enter',
+    });
+    const menu = await screen.findByRole('menu');
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent),
+    ).toEqual(['Rename', 'Pin to top', 'Delete']);
+    fireEvent.keyDown(menu, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+
+    await chooseFromMenu(sidebar, 'Trip ideas', 'Pin to top');
+    const pinned = await within(sidebar).findByRole('region', { name: 'Pinned' });
+    expect(within(pinned).getByRole('link', { name: 'Trip ideas' })).toBeInTheDocument();
+    await waitFor(() => expect(patches()[0]?.body).toBe(JSON.stringify({ pinned: true })));
+
+    await chooseFromMenu(sidebar, 'Trip ideas', 'Rename');
+    const field = await within(sidebar).findByRole('textbox', { name: 'Chat title' });
+    expect(field).toHaveValue('Trip ideas');
+
+    // A blank title is refused with a message and nothing is sent.
+    fireEvent.change(field, { target: { value: '   ' } });
+    fireEvent.submit(field);
+    expect(within(sidebar).getByRole('alert')).toHaveTextContent('Enter a title');
+    expect(field).toHaveAttribute('aria-invalid', 'true');
+    expect(patches()).toHaveLength(1);
+
+    fireEvent.change(field, { target: { value: '  Kyoto in autumn  ' } });
+    expect(within(sidebar).queryByRole('alert')).not.toBeInTheDocument();
+    fireEvent.submit(field);
+    expect(
+      await within(pinned).findByRole('link', { name: 'Kyoto in autumn' }),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(patches()[1]?.body).toBe(JSON.stringify({ title: 'Kyoto in autumn' })),
+    );
+
+    // Escape abandons an edit, and an unchanged title sends nothing.
+    await chooseFromMenu(sidebar, 'Kyoto in autumn', 'Rename');
+    const again = await within(sidebar).findByRole('textbox', { name: 'Chat title' });
+    fireEvent.change(again, { target: { value: 'Discard me' } });
+    fireEvent.keyDown(again, { key: 'Escape' });
+    expect(within(sidebar).queryByRole('textbox', { name: 'Chat title' })).not.toBeInTheDocument();
+    await chooseFromMenu(sidebar, 'Kyoto in autumn', 'Rename');
+    fireEvent.submit(await within(sidebar).findByRole('textbox', { name: 'Chat title' }));
+    expect(patches()).toHaveLength(2);
+
+    await chooseFromMenu(sidebar, 'Kyoto in autumn', 'Unpin');
+    await waitFor(() =>
+      expect(within(sidebar).queryByRole('region', { name: 'Pinned' })).not.toBeInTheDocument(),
+    );
+    expect(patches()[2]?.body).toBe(JSON.stringify({ pinned: false }));
+  });
+
+  it('deletes a chat after confirming in a dialog', async () => {
+    const tripId = '5a1b8e8a-2d7b-4b8f-9d2a-6f0c1e2b3a4d';
+    let chats = [summary(conversationId, 'Vector databases'), summary(tripId, 'Trip ideas')];
+    const removeRoute = (id: string) => () => {
+      chats = chats.filter((chat) => chat.id !== id);
+      return new Response(null, { status: 204 });
+    };
+    const api = mockApi({
+      ...baseRoutes,
+      '/api/me': () => jsonResponse(userMe),
+      'GET /api/models': modelsRoute,
+      'GET /api/conversations': () => jsonResponse({ conversations: chats }),
+      [`GET /api/conversations/${conversationId}`]: () =>
+        jsonResponse({ ...summary(conversationId, 'Vector databases'), messages: [] }),
+      [`DELETE /api/conversations/${tripId}`]: removeRoute(tripId),
+      [`DELETE /api/conversations/${conversationId}`]: removeRoute(conversationId),
+    });
+    const { router } = renderApp(`/chat/${conversationId}`);
+    const sidebar = await screen.findByRole('navigation', { name: 'Conversations' });
+    await within(sidebar).findByRole('link', { name: 'Trip ideas' });
+
+    // Cancel keeps the chat and sends nothing.
+    await chooseFromMenu(sidebar, 'Trip ideas', 'Delete');
+    let dialog = await screen.findByRole('dialog', { name: 'Delete this chat?' });
+    expect(dialog).toHaveTextContent('“Trip ideas” and all its messages will be deleted');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(within(sidebar).getByRole('link', { name: 'Trip ideas' })).toBeInTheDocument();
+    expect(callsTo(api, `DELETE /api/conversations/${tripId}`)).toHaveLength(0);
+
+    await chooseFromMenu(sidebar, 'Trip ideas', 'Delete');
+    dialog = await screen.findByRole('dialog', { name: 'Delete this chat?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete chat' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(within(sidebar).queryByRole('link', { name: 'Trip ideas' })).not.toBeInTheDocument();
+    expect(callsTo(api, `DELETE /api/conversations/${tripId}`)).toHaveLength(1);
+    expect(router.state.location.pathname).toBe(`/chat/${conversationId}`);
+
+    // Deleting the open chat starts a new one.
+    await chooseFromMenu(sidebar, 'Vector databases', 'Delete');
+    dialog = await screen.findByRole('dialog', { name: 'Delete this chat?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete chat' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/chat'));
+    expect(await screen.findByText('Your saved chats will appear here.')).toBeInTheDocument();
+  });
+
+  it('keeps a chat as it was when the server refuses a change', async () => {
+    mockApi({
+      ...baseRoutes,
+      '/api/me': () => jsonResponse(userMe),
+      'GET /api/models': modelsRoute,
+      'GET /api/conversations': () =>
+        jsonResponse({ conversations: [summary(conversationId, 'Vector databases')] }),
+      [`PATCH /api/conversations/${conversationId}`]: () =>
+        errorResponse(404, 'NOT_FOUND', 'This conversation does not exist.'),
+      [`DELETE /api/conversations/${conversationId}`]: () =>
+        errorResponse(500, 'INTERNAL_ERROR', 'Try again in a moment.'),
+    });
+    renderApp('/chat');
+    const sidebar = await screen.findByRole('navigation', { name: 'Conversations' });
+    await within(sidebar).findByRole('link', { name: 'Vector databases' });
+
+    await chooseFromMenu(sidebar, 'Vector databases', 'Pin to top');
+    expect(await within(sidebar).findByRole('alert')).toHaveTextContent(
+      'This conversation does not exist.',
+    );
+    expect(within(sidebar).queryByRole('region', { name: 'Pinned' })).not.toBeInTheDocument();
+
+    // A failed delete keeps the dialog open to retry or cancel.
+    await chooseFromMenu(sidebar, 'Vector databases', 'Delete');
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this chat?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete chat' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Try again in a moment.');
+    expect(screen.getByRole('dialog', { name: 'Delete this chat?' })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(within(sidebar).getByRole('link', { name: 'Vector databases' })).toBeInTheDocument();
   });
 
   it('explains a conversation that does not exist', async () => {

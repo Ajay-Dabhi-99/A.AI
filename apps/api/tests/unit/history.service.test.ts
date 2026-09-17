@@ -24,7 +24,12 @@ function setup() {
   const service = new HistoryService({
     history: createMemoryHistory(conversations, comparisons),
     conversations,
-    attachments: { keysForConversation: async () => [], removeObjects: async () => undefined },
+    attachments: {
+      keysForConversation: async () => [],
+      removeObjects: async () => undefined,
+      generatedIdsForConversation: async () => [],
+      removeRows: async () => undefined,
+    },
     clock,
     logger: silentLogger(),
   });
@@ -229,7 +234,8 @@ describe('history list', () => {
     for (const attempt of [
       ctx.service.conversationRuns(ME, theirChat),
       ctx.service.comparison(ME, theirComparison),
-      ctx.service.rename(ME, theirChat, 'Mine now'),
+      ctx.service.updateConversation(ME, theirChat, { title: 'Mine now' }),
+      ctx.service.updateConversation(ME, theirChat, { pinned: true }),
       ctx.service.delete(ME, 'conversation', theirChat),
       ctx.service.delete(ME, 'comparison', theirComparison),
     ]) {
@@ -279,9 +285,32 @@ describe('run detail, rename and delete', () => {
     const id = await chat(ctx, ME, 'Old title');
     const before = ctx.conversations.data.conversations[0]!.updatedAt.toISOString();
 
-    const { conversation } = await ctx.service.rename(ME, id, 'New title');
+    const { conversation } = await ctx.service.updateConversation(ME, id, { title: 'New title' });
 
-    expect(conversation).toMatchObject({ title: 'New title', updatedAt: before });
+    expect(conversation).toMatchObject({ title: 'New title', updatedAt: before, pinnedAt: null });
+  });
+
+  it('pins and unpins at the clock time, keeping the title and activity time', async () => {
+    const ctx = setup();
+    const id = await chat(ctx, ME, 'Keep me');
+    const before = ctx.conversations.data.conversations[0]!.updatedAt.toISOString();
+
+    const pinned = await ctx.service.updateConversation(ME, id, { pinned: true });
+    expect(pinned.conversation).toMatchObject({
+      title: 'Keep me',
+      pinnedAt: '2026-09-15T12:00:00.000Z',
+      updatedAt: before,
+    });
+
+    ctx.clock.advance(60_000);
+    const both = await ctx.service.updateConversation(ME, id, { title: 'Renamed', pinned: true });
+    expect(both.conversation).toMatchObject({
+      title: 'Renamed',
+      pinnedAt: '2026-09-15T12:01:00.000Z',
+    });
+
+    const unpinned = await ctx.service.updateConversation(ME, id, { pinned: false });
+    expect(unpinned.conversation).toMatchObject({ title: 'Renamed', pinnedAt: null });
   });
 
   it('deletes a chat with its runs, which also leave the usage report', async () => {

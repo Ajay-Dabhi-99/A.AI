@@ -1,5 +1,6 @@
 import type { AIModel, RunStatus } from './ai.js';
 import type { Attachment } from './attachments.js';
+import type { MediaJob } from './media.js';
 import type { ProviderInfo } from './models.js';
 
 /** Chat and conversation contracts (Phase 2, docs/api/chat.md). */
@@ -28,6 +29,8 @@ export type ChatMessage = {
 export type ConversationSummary = {
   id: string;
   title: string;
+  /** When the owner pinned it; null when not pinned. Pinned chats list first (MODEL-062). */
+  pinnedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -40,6 +43,8 @@ export type ConversationListResponse = {
 /** GET /api/conversations/:id */
 export type ConversationDetail = ConversationSummary & {
   messages: ChatMessage[];
+  /** Images (and videos) created in this chat, oldest first (MODEL-065). */
+  mediaJobs: MediaJob[];
 };
 
 /** GET /api/guest/conversation. Guests have one temporary chat that expires with their session. */

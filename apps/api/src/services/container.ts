@@ -49,7 +49,7 @@ import {
   type HistoryRepository,
 } from '../repositories/history.repository.js';
 import type { MediaGenerationProvider, TranscriptionProvider } from '@a-ai/ai-core';
-import { GroqTranscriptionProvider } from '@a-ai/ai-providers';
+import { CloudflareImageProvider, GroqTranscriptionProvider } from '@a-ai/ai-providers';
 import type { MediaJobKind } from '@a-ai/shared-types';
 import { AttachmentService } from '../modules/attachments/attachment.service.js';
 import { TranscriptionService } from '../modules/audio/transcription.service.js';
@@ -142,7 +142,7 @@ export type ServiceOverrides = {
   /** Replaces Supabase Storage (or the disabled storage when it is not configured). */
   storage?: ObjectStorage;
   generationJobs?: GenerationJobRepository;
-  /** Image providers; production registers none yet. */
+  /** Replaces the image providers built from the environment (Cloudflare Workers AI). */
   imageProviders?: MediaGenerationProvider[];
   imageJobTimeoutMs?: number;
   /** Video providers; production registers none yet (Phase 9). */
@@ -153,6 +153,18 @@ export type ServiceOverrides = {
   /** Replaces the speech-to-text adapter; null turns voice input off. */
   transcription?: TranscriptionProvider | null;
 };
+
+/** Free image generation runs on Cloudflare Workers AI when its account is configured. */
+function imageProvidersFromEnv(env: ServerEnv): MediaGenerationProvider[] {
+  return env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_AI_API_TOKEN
+    ? [
+        new CloudflareImageProvider({
+          accountId: env.CLOUDFLARE_ACCOUNT_ID,
+          apiToken: env.CLOUDFLARE_AI_API_TOKEN,
+        }),
+      ]
+    : [];
+}
 
 function storageFromEnv(env: ServerEnv): ObjectStorage {
   return env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY
@@ -242,6 +254,7 @@ export function createServices(input: {
       providers,
       jobs: generationJobs,
       attachments,
+      conversations,
       store,
       rateLimiter,
       rule,
@@ -331,7 +344,7 @@ export function createServices(input: {
       services: {
         image: mediaJobs(
           'image',
-          overrides.imageProviders ?? [],
+          overrides.imageProviders ?? imageProvidersFromEnv(env),
           rateLimits.imageByUser,
           overrides.imageJobTimeoutMs,
         ),

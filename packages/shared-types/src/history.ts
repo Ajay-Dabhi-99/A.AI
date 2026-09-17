@@ -69,7 +69,7 @@ export type ComparisonDetail = {
   runs: (RunDetail & { position: number; content: string | null })[];
 };
 
-/** PATCH /api/conversations/:id */
-export type ConversationRenameResponse = {
+/** PATCH /api/conversations/:id (rename and/or pin) */
+export type ConversationUpdateResponse = {
   conversation: ConversationSummary;
 };

@@ -6,7 +6,7 @@
 
 - the earlier live gates;
 - this phase's migration applied and the live attachment/job suite passing;
-- one real voice transcription with a `GROQ_API_KEY`, and read-aloud checked in a real browser.
+- ~~one real voice transcription with a `GROQ_API_KEY`~~ (passed 2026-09-17), and the microphone and read-aloud checked in a real browser.
 
 Video has no provider by decision.
 
@@ -46,7 +46,7 @@ Run on 2026-09-17, Windows 11, Node 22, pnpm 10.34.5. No provider was called: ev
 | Voice and read aloud (web)                     | `apps/web/tests/chat-voice.test.tsx`                                                            | PASS: recording goes to the draft, not to chat; mic hidden when off; read aloud speaks plain text and stops                                                                                                                               |
 | Migration SQL                                  | `prisma migrate diff`                                                                           | Generated from the Phase 8 schema                                                                                                                                                                                                         |
 | Live: job CAS and nullable dimensions          | `pnpm test:live`                                                                                | **NOT RUN: `.env` database and Redis URLs are placeholders**                                                                                                                                                                              |
-| Real transcription, real microphone and voices | manual                                                                                          | **NOT RUN: no `GROQ_API_KEY`; not tried in a real browser**                                                                                                                                                                               |
+| Real transcription, real microphone and voices | `POST /api/audio/transcriptions` with a generated WAV; browser manual                           | Transcription **PASS** 2026-09-17 (exact text back from `whisper-large-v3-turbo`). Microphone and voices **NOT RUN** in a real browser                                                                                                    |
 
 ## Gate evidence
 

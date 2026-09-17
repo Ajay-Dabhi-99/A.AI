@@ -72,6 +72,10 @@ The SHA-256 of the stored bytes is recorded.
   - Generation is capped per user per day.
 - The service, runner and routes are covered by tests with a scripted image provider, so enabling a real one is configuration plus an adapter.
 
+### 7. Update 2026-09-17: a free image provider
+
+None of the chat providers offers free image generation (Gemini's free-tier limit for its image models is 0; OpenRouter's image models are paid; Groq has none). Cloudflare Workers AI does: 10,000 neurons a day on the Workers Free plan. `CloudflareImageProvider` (FLUX.1 [schnell], 4 steps, JPEG) is registered when `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_AI_API_TOKEN` are both set, so section 6's "off" state now applies only to deployments without them. Survey: [generation API](../api/generation.md#free-media-generation-survey-2026-09-17).
+
 ## Consequences
 
 - Image features need a Supabase Storage bucket and the service-role key in the API's environment.

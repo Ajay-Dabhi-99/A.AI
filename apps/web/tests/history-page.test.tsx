@@ -112,6 +112,7 @@ describe('history page', () => {
           conversation: {
             id: chatItem.id,
             title,
+            pinnedAt: null,
             createdAt: chatItem.createdAt,
             updatedAt: chatItem.lastActivityAt,
           },
@@ -174,6 +175,7 @@ describe('run detail', () => {
       conversation: {
         id: chatItem.id,
         title: 'Kyoto trip',
+        pinnedAt: null,
         createdAt: chatItem.createdAt,
         updatedAt: chatItem.lastActivityAt,
       },

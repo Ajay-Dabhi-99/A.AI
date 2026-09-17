@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Trash2 } from 'lucide-react';
+import { PanelLeft, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, Navigate, useLocation, useParams } from 'react-router';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button-variants';
+import { Dialog, DialogTrigger, SheetContent } from '@/components/ui/dialog';
 import { PageSpinner } from '@/components/ui/spinner';
 import { ChatPanel } from '@/features/chat/chat-panel';
 import { ConversationSidebar } from '@/features/chat/conversation-sidebar';
@@ -94,6 +96,32 @@ function GuestChat() {
   );
 }
 
+/** Below the large breakpoint the sidebar becomes a drawer opened from this bar. */
+function MobileChatBar({ conversationId }: { conversationId: string | undefined }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="flex items-center justify-between gap-2 pb-2 lg:hidden">
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
+          <PanelLeft aria-hidden="true" />
+          Chats
+        </DialogTrigger>
+        <SheetContent side="left" title="Your chats" className="px-2 pt-12">
+          <ConversationSidebar
+            activeId={conversationId}
+            onNavigate={() => setOpen(false)}
+            className="border-0 bg-transparent p-0"
+          />
+        </SheetContent>
+      </Dialog>
+      <Link to="/chat" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+        <Plus aria-hidden="true" />
+        New chat
+      </Link>
+    </div>
+  );
+}
+
 /** Signed-in users: saved conversations with a sidebar. */
 function UserChat({ conversationId }: { conversationId: string | undefined }) {
   const me = useMe();
@@ -140,6 +168,7 @@ function UserChat({ conversationId }: { conversationId: string | undefined }) {
         isGuest={false}
         conversationId={conversationId ?? null}
         initialMessages={conversation.data?.messages ?? []}
+        initialMediaJobs={conversation.data?.mediaJobs}
         models={models.data.models}
         defaultModel={models.data.defaultModel}
         providers={models.data.providers}
@@ -159,11 +188,7 @@ function UserChat({ conversationId }: { conversationId: string | undefined }) {
         <ConversationSidebar activeId={conversationId} />
       </aside>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="pb-2 lg:hidden">
-          <Link to="/chat" className="text-sm font-medium text-primary hover:underline">
-            + New chat
-          </Link>
-        </div>
+        <MobileChatBar conversationId={conversationId} />
         {content}
       </div>
     </div>
@@ -189,5 +214,9 @@ export function ChatPage() {
     body = <GuestChat />;
   }
 
-  return <div className="mx-auto h-[calc(100svh-4rem)] max-w-6xl px-4 py-4 sm:px-5">{body}</div>;
+  return (
+    <div className="mx-auto h-[calc(100svh-4rem-30px)] max-w-6xl px-3 py-3 sm:px-5 sm:py-4">
+      {body}
+    </div>
+  );
 }

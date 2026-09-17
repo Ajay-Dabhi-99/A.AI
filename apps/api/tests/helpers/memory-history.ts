@@ -236,12 +236,13 @@ export function createMemoryHistory(
       };
     },
 
-    renameConversation: async (id, userId, title) => {
+    updateConversation: async (id, userId, { title, pinnedAt }) => {
       const conversation = chat.conversations.find(
         (candidate) => candidate.id === id && candidate.userId === userId,
       );
       if (!conversation) return null;
-      conversation.title = title;
+      if (title !== undefined) conversation.title = title;
+      if (pinnedAt !== undefined) conversation.pinnedAt = pinnedAt;
       return { ...conversation };
     },
 

@@ -112,3 +112,68 @@ test('deep links and unknown pages load the app', async ({ page }) => {
   await page.goto('/this-page-does-not-exist');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 });
+
+test('a long answer stays in view as it types', async ({ page }) => {
+  const history = Array.from({ length: 12 }, (_, index) => [
+    {
+      id: `u${index}`,
+      role: 'user',
+      content: `Question ${index}`,
+      createdAt: '2030-01-01T00:00:00.000Z',
+    },
+    {
+      id: `a${index}`,
+      role: 'assistant',
+      content: `Answer ${index}. `.repeat(40),
+      createdAt: '2030-01-01T00:00:01.000Z',
+    },
+  ]).flat();
+  const answer = Array.from({ length: 30 }, (_, index) => `Paragraph ${index} of the reply.`).join(
+    '\n\n',
+  );
+  await mockApi(page, {
+    'GET /api/guest/conversation': json({
+      messages: history,
+      expiresAt: '2030-01-01T00:00:00.000Z',
+    }),
+    'POST /api/chat': sse([
+      [
+        'message.start',
+        {
+          runId: 'r1',
+          provider: 'groq',
+          model: 'openai/gpt-oss-20b',
+          conversationId: null,
+          context: {
+            inputTokens: 40,
+            budgetTokens: 120_000,
+            contextWindow: 131_072,
+            droppedMessages: 0,
+            summaryIncluded: false,
+          },
+        },
+      ],
+      ['message.delta', { runId: 'r1', text: answer }],
+      ['message.done', { runId: 'r1', status: 'completed', messageId: null, latencyMs: 420 }],
+    ]),
+  });
+
+  await page.goto('/chat');
+  await expect(page.getByText('Question 11')).toBeVisible();
+  const list = page.locator('[aria-live="polite"]');
+  // Read older messages, then ask something new.
+  await list.evaluate((element) => element.scrollTo({ top: 0 }));
+  await page.getByRole('textbox', { name: 'Message' }).fill('Tell me more');
+  await page.getByRole('button', { name: 'Send message' }).click();
+
+  const last = page.getByText('Paragraph 29 of the reply.');
+  await expect(last).toBeVisible();
+  const composer = page.getByRole('textbox', { name: 'Message' });
+  const lastBox = await last.boundingBox();
+  const listBox = await list.boundingBox();
+  const composerBox = await composer.boundingBox();
+  expect(lastBox && listBox && composerBox).toBeTruthy();
+  // The newest line sits inside the visible list, above the message box.
+  expect(lastBox!.y + lastBox!.height).toBeLessThanOrEqual(listBox!.y + listBox!.height);
+  expect(lastBox!.y + lastBox!.height).toBeLessThan(composerBox!.y);
+});

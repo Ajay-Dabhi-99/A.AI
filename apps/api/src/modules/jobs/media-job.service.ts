@@ -18,7 +18,9 @@ import type { KeyValueStore } from '../../services/kv-store.js';
 import type { RateLimiter, RateLimitRule } from '../../services/rate-limit.service.js';
 import type { Clock } from '../../shared/clock.js';
 import { AppError } from '../../shared/errors/app-error.js';
+import type { ConversationRepository } from '../../repositories/conversation.repository.js';
 import type { AttachmentService } from '../attachments/attachment.service.js';
+import { conversationTitle } from '../chat/mappers.js';
 
 /** Longest one generation may take before the job fails with PROVIDER_TIMEOUT. */
 export const MEDIA_JOB_TIMEOUT_MS: Readonly<Record<MediaJobKind, number>> = {
@@ -47,6 +49,8 @@ export type MediaJobServiceDeps = {
   providers: MediaGenerationProvider[];
   jobs: GenerationJobRepository;
   attachments: Pick<AttachmentService, 'enabled' | 'find' | 'storeGenerated' | 'discard'>;
+  /** Chats a job can be created in (MODEL-065). */
+  conversations: Pick<ConversationRepository, 'findForUser' | 'create' | 'touch'>;
   store: KeyValueStore;
   rateLimiter: RateLimiter;
   rule: RateLimitRule;
@@ -74,6 +78,7 @@ export function toMediaJob(
     progress,
     errorCode: job.errorCode,
     attachment,
+    conversationId: job.conversationId,
     createdAt: job.createdAt.toISOString(),
     completedAt: job.completedAt?.toISOString() ?? null,
   };
@@ -139,15 +144,30 @@ export class MediaJobService {
         retryable: false,
       });
     }
+    const { conversations, clock } = this.#deps;
+    const existing =
+      input.conversationId && input.conversationId !== 'new'
+        ? await conversations.findForUser(input.conversationId, userId)
+        : null;
+    if (input.conversationId && input.conversationId !== 'new' && !existing) {
+      throw new AppError('NOT_FOUND', 'This conversation does not exist.');
+    }
     await this.#deps.rateLimiter.consume(this.#deps.rule, `user:${userId}`);
 
+    // `new` starts a chat named after the prompt, as a first chat message would.
+    const conversation =
+      input.conversationId === 'new'
+        ? await conversations.create({ userId, title: conversationTitle(input.prompt) })
+        : existing;
     const job = await this.#deps.jobs.create({
       userId,
       kind,
       provider: input.provider,
       model: input.model,
       prompt: input.prompt,
+      conversationId: conversation?.id ?? null,
     });
+    if (conversation) await conversations.touch(conversation.id, clock.now());
     await this.#mirror(job.id, 'queued', null);
     this.#deps.logger.info(
       {
@@ -175,6 +195,14 @@ export class MediaJobService {
   async list(userId: string, limit: number): Promise<MediaJobListResponse> {
     const jobs = await this.#deps.jobs.listForUser(userId, this.#deps.kind, limit);
     return { jobs: await Promise.all(jobs.map((job) => this.describe(job))) };
+  }
+
+  /** Jobs of this kind started from one chat, oldest first. */
+  async listForConversation(userId: string, conversationId: string): Promise<MediaJob[]> {
+    const jobs = await this.#deps.jobs.listForConversation(conversationId, userId);
+    return Promise.all(
+      jobs.filter((job) => job.kind === this.#deps.kind).map((job) => this.describe(job)),
+    );
   }
 
   /** Idempotent: cancelling an ended job returns it unchanged. */

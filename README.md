@@ -17,7 +17,7 @@
 - **History and dashboard:** search and filter past chats and comparisons, reopen run details, and see usage over time.
 - **Model registry:** one catalog of models, capabilities and prices; admins can enable or disable models.
 - **Context management:** conversations stay within each model's context budget, with background summaries for long chats.
-- **Multimodal:** image upload for vision models, voice input (speech-to-text with Groq) and read-aloud. Image and video generation use resumable background jobs; no generation provider is enabled yet, and the app says so.
+- **Multimodal:** image upload for vision models, voice input (speech-to-text with Groq) and read-aloud. Images are created right in the chat (free FLUX.1 [schnell] on Cloudflare Workers AI). Image and video generation use resumable background jobs; video has no provider yet, and the app says so.
 - **Provider-agnostic:** OpenRouter, Google Gemini and Groq behind one provider interface.
 
 ## Stack
@@ -129,6 +129,7 @@ docs/                   Architecture, API, phases, decisions, learning guide
 
 - [Learning guide: what each phase builds and where](docs/development/learning-guide.md)
 - [Roadmap and tracker](docs/development/roadmap.md)
+- [Deployment guide: zero to production, step by step](docs/development/deployment-guide.md)
 - [Deployment, backups and rollback](docs/development/deployment.md)
 - [Release checklist](docs/development/release-checklist.md)
 - [Security review](docs/development/security-review.md)

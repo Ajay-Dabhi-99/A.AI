@@ -5,6 +5,13 @@ import type { ConversationRecord, RunStatusValue } from './conversation.reposito
 
 export type HistoryKindValue = 'conversation' | 'comparison';
 
+/** Fields a user can change on a saved chat. */
+export type ConversationChanges = {
+  title?: string;
+  /** A date pins, null unpins, undefined keeps the current state. */
+  pinnedAt?: Date | null;
+};
+
 export type HistoryListFilter = {
   userId: string;
   kind: 'all' | HistoryKindValue;
@@ -117,7 +124,15 @@ export interface HistoryRepository {
   /** Null when it does not exist or belongs to someone else. */
   comparisonDetail(id: string, userId: string): Promise<ComparisonDetailRecord | null>;
   /** Changes the title without marking the conversation as active. Null when not the user's. */
-  renameConversation(id: string, userId: string, title: string): Promise<ConversationRecord | null>;
+  /**
+   * Renames and/or pins without marking the chat as recently active. `pinnedAt`
+   * null unpins; undefined leaves the pin as it is. Null when not the user's.
+   */
+  updateConversation(
+    id: string,
+    userId: string,
+    changes: ConversationChanges,
+  ): Promise<ConversationRecord | null>;
   /** Permanently deletes it with its messages and runs. False when not the user's. */
   deleteConversation(id: string, userId: string): Promise<boolean>;
   deleteComparison(id: string, userId: string): Promise<boolean>;
@@ -310,12 +325,16 @@ export function createPrismaHistoryRepository(prisma: PrismaClient): HistoryRepo
     },
 
     // Raw SQL: Prisma's @updatedAt would otherwise move a renamed conversation to the top.
-    renameConversation: async (id, userId, title) => {
+    // Raw SQL: Prisma's @updatedAt would otherwise mark the conversation as recently active.
+    updateConversation: async (id, userId, { title, pinnedAt }) => {
       const rows = await prisma.$queryRaw<ConversationRecord[]>`
-        UPDATE "conversations" SET "title" = ${title}
+        UPDATE "conversations"
+        SET "title" = COALESCE(${title ?? null}::varchar, "title"),
+            "pinnedAt" = CASE WHEN ${pinnedAt !== undefined} THEN ${pinnedAt ?? null}::timestamptz
+                              ELSE "pinnedAt" END
         WHERE "id" = ${id}::uuid AND "userId" = ${userId}::uuid
         RETURNING "id", "userId", "title", "guestMigrationKey", "summary",
-                  "summaryUpToMessageId", "summaryUpdatedAt", "createdAt", "updatedAt"`;
+                  "summaryUpToMessageId", "summaryUpdatedAt", "pinnedAt", "createdAt", "updatedAt"`;
       return rows[0] ?? null;
     },
 

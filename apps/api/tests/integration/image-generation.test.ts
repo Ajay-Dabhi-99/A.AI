@@ -1,5 +1,11 @@
 import { AIProviderError } from '@a-ai/ai-core';
-import { imageGenerationStatusSchema, imageJobResponseSchema } from '@a-ai/validation';
+import {
+  conversationDetailSchema,
+  conversationListResponseSchema,
+  imageGenerationStatusSchema,
+  imageJobResponseSchema,
+} from '@a-ai/validation';
+import type { ServerEnv } from '@a-ai/config/server';
 import { afterEach, describe, expect, it } from 'vitest';
 import { contains, png, svg } from '../helpers/images.js';
 import { ScriptedImageProvider } from '../helpers/image-provider.js';
@@ -12,6 +18,7 @@ import {
 import {
   buildAuthTestApp,
   cookieValue,
+  testEnv,
   WEB_ORIGIN,
   type AuthTestContext,
 } from '../helpers/test-app.js';
@@ -26,10 +33,11 @@ afterEach(async () => {
   ctx = undefined;
 });
 
-async function setup(provider?: ScriptedImageProvider): Promise<Context> {
+async function setup(provider?: ScriptedImageProvider, env?: ServerEnv): Promise<Context> {
   const storage = createMemoryStorage();
   const jobs = createMemoryGenerationJobs();
   const context = await buildAuthTestApp({
+    ...(env ? { env } : {}),
     services: {
       storage,
       generationJobs: jobs,
@@ -92,6 +100,24 @@ describe('image generation jobs (ADR-015 §6)', () => {
     expect((await generate(context, undefined, {})).statusCode).toBe(401);
   });
 
+  it('offers FLUX.1 [schnell] when a Cloudflare account is configured', async () => {
+    const context = await setup(
+      undefined,
+      testEnv({ CLOUDFLARE_ACCOUNT_ID: 'account-1', CLOUDFLARE_AI_API_TOKEN: 'token-1' }),
+    );
+    const status = await context.app.inject({ method: 'GET', url: '/api/image/status' });
+    expect(imageGenerationStatusSchema.parse(status.json())).toEqual({
+      enabled: true,
+      models: [
+        {
+          provider: 'cloudflare',
+          model: '@cf/black-forest-labs/flux-1-schnell',
+          name: 'FLUX.1 [schnell]',
+        },
+      ],
+    });
+  });
+
   it('runs a job to a verified, stored image that only its owner can read', async () => {
     const provider = new ScriptedImageProvider(async () => ({
       mimeType: 'image/png',
@@ -129,6 +155,68 @@ describe('image generation jobs (ADR-015 §6)', () => {
     const unknownModel = await generate(context, cookies, { model: 'pix-9' });
     expect(unknownModel.statusCode).toBe(503);
     expect(unknownModel.json().error.message).toBe('This image model is not available.');
+  });
+
+  it('creates images inside a chat, lists them with it and deletes them with it', async () => {
+    const provider = new ScriptedImageProvider(async () => ({
+      mimeType: 'image/png',
+      data: png(64, 64),
+    }));
+    const context = await setup(provider);
+    const cookies = await signIn(context);
+
+    const started = imageJobResponseSchema.parse(
+      (await generate(context, cookies, { prompt: 'a lighthouse', conversationId: 'new' })).json(),
+    ).job;
+    const conversationId = started.conversationId;
+    expect(conversationId).toEqual(expect.any(String));
+    const list = conversationListResponseSchema.parse(
+      (await context.app.inject({ method: 'GET', url: '/api/conversations', cookies })).json(),
+    );
+    expect(list.conversations).toMatchObject([{ id: conversationId, title: 'a lighthouse' }]);
+
+    const again = await generate(context, cookies, { prompt: 'at night', conversationId });
+    expect(imageJobResponseSchema.parse(again.json()).job.conversationId).toBe(conversationId);
+    await context.app.services.jobs.idle();
+
+    const detail = conversationDetailSchema.parse(
+      (
+        await context.app.inject({
+          method: 'GET',
+          url: `/api/conversations/${conversationId}`,
+          cookies,
+        })
+      ).json(),
+    );
+    expect(detail.messages).toEqual([]);
+    expect(detail.mediaJobs.map((item) => [item.prompt, item.status])).toEqual([
+      ['a lighthouse', 'completed'],
+      ['at night', 'completed'],
+    ]);
+    const attachmentId = detail.mediaJobs[0]!.attachment!.id;
+
+    // Someone else's chat is unknown, and nothing is created for it.
+    const other = await signIn(context, 'other@example.com');
+    const refused = await generate(context, other, { prompt: 'mine', conversationId });
+    expect(refused.statusCode).toBe(404);
+    expect(context.jobs.data).toHaveLength(2);
+    expect((await generate(context, cookies, { conversationId: 'nope' })).statusCode).toBe(400);
+
+    expect(context.storage.objects.size).toBe(2);
+    const removed = await context.app.inject({
+      method: 'DELETE',
+      url: `/api/conversations/${conversationId}`,
+      headers: { origin: WEB_ORIGIN },
+      cookies,
+    });
+    expect(removed.statusCode).toBe(204);
+    expect(context.storage.objects.size).toBe(0);
+    const url = await context.app.inject({
+      method: 'GET',
+      url: `/api/attachments/${attachmentId}/url`,
+      cookies,
+    });
+    expect(url.statusCode).toBe(404);
   });
 
   it('records provider failures and unusable output as failed jobs', async () => {

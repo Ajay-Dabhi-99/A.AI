@@ -17,6 +17,8 @@ export type MemoryAttachments = AttachmentRepository & { data: AttachmentRecord[
  */
 export function createMemoryAttachments(
   conversationOf: (messageId: string) => string | undefined = () => undefined,
+  /** The chat whose job generated an attachment, as the SQL join through `generation_jobs` does. */
+  generatedIn: (attachmentId: string) => string | undefined = () => undefined,
 ): MemoryAttachments {
   const data: AttachmentRecord[] = [];
   let tick = 0;
@@ -74,10 +76,14 @@ export function createMemoryAttachments(
         .filter(
           (record) =>
             record.userId === userId &&
-            record.messageId !== null &&
-            conversationOf(record.messageId) === conversationId,
+            ((record.messageId !== null && conversationOf(record.messageId) === conversationId) ||
+              generatedIn(record.id) === conversationId),
         )
         .map((record) => record.storageKey),
+    generatedIdsForConversation: async (conversationId, userId) =>
+      data
+        .filter((record) => record.userId === userId && generatedIn(record.id) === conversationId)
+        .map((record) => record.id),
 
     listUnattachedBefore: async (before, limit) =>
       data
@@ -149,6 +155,7 @@ export function createMemoryGenerationJobs(
       const job: GenerationJobRecord = {
         id: randomUUID(),
         ...input,
+        conversationId: input.conversationId ?? null,
         status: 'QUEUED',
         errorCode: null,
         attachmentId: null,
@@ -168,6 +175,11 @@ export function createMemoryGenerationJobs(
         .filter((job) => job.userId === userId && (kind === null || job.kind === kind))
         .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
         .slice(0, limit)
+        .map((job) => ({ ...job })),
+    listForConversation: async (conversationId, userId) =>
+      data
+        .filter((job) => job.conversationId === conversationId && job.userId === userId)
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
         .map((job) => ({ ...job })),
     claim: async (id, at) => {
       const job = find(id);

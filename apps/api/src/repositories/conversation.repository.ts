@@ -11,6 +11,8 @@ export type ConversationRecord = {
   summary: string | null;
   summaryUpToMessageId: string | null;
   summaryUpdatedAt: Date | null;
+  /** Set while pinned (MODEL-062). */
+  pinnedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -104,10 +106,12 @@ export interface ConversationRepository {
   create(data: { userId: string; title: string }): Promise<ConversationRecord>;
   /** Null when it does not exist or belongs to someone else. */
   findForUser(id: string, userId: string): Promise<ConversationRecord | null>;
-  /** Most recently active first. */
+  /** Pinned first (most recently pinned on top), then most recently active. */
   listForUser(userId: string, limit: number): Promise<ConversationRecord[]>;
   /** Oldest first, each with its run when it has one. */
   listMessages(conversationId: string): Promise<MessageRecord[]>;
+  /** Marks the conversation as recently active (an image was created in it). */
+  touch(id: string, at: Date): Promise<void>;
   /** Adds the message and marks the conversation as recently active. */
   addUserMessage(conversationId: string, content: string): Promise<MessageRecord>;
   startRun(data: { conversationId: string; provider: string; model: string }): Promise<RunRecord>;
@@ -147,7 +151,7 @@ export function createPrismaConversationRepository(prisma: PrismaClient): Conver
     listForUser: (userId, limit) =>
       prisma.conversation.findMany({
         where: { userId },
-        orderBy: { updatedAt: 'desc' },
+        orderBy: [{ pinnedAt: { sort: 'desc', nulls: 'last' } }, { updatedAt: 'desc' }],
         take: limit,
       }),
 
@@ -157,6 +161,10 @@ export function createPrismaConversationRepository(prisma: PrismaClient): Conver
         orderBy: { createdAt: 'asc' },
         include: { run: true },
       }),
+
+    touch: async (id, at) => {
+      await prisma.conversation.updateMany({ where: { id }, data: { updatedAt: at } });
+    },
 
     addUserMessage: async (conversationId, content) => {
       const [message] = await prisma.$transaction([

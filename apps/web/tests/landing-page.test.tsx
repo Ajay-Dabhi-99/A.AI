@@ -17,7 +17,10 @@ describe('landing page', () => {
       screen.getByRole('heading', { name: /three steps from question to decision/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/illustrative preview, not a benchmark/i)).toBeInTheDocument();
-    await waitFor(() => expect(screen.getAllByText('All systems operational')).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByText('All systems operational')).toHaveLength(1));
+    expect(screen.getByRole('contentinfo')).toHaveTextContent(
+      /© \d{4} A\.ai\. All rights reserved\.\s*Developed by Ajay Dabhi/,
+    );
   });
 
   it('shows a partial outage when readiness returns 503', async () => {
@@ -37,7 +40,7 @@ describe('landing page', () => {
         ),
     });
     renderApp('/');
-    await waitFor(() => expect(screen.getAllByText('Partial outage')).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByText('Partial outage')).toHaveLength(1));
     expect(screen.getAllByText('Partial outage')[0]?.closest('[role="status"]')).toHaveAttribute(
       'title',
       expect.stringContaining('Redis: down'),
@@ -47,7 +50,7 @@ describe('landing page', () => {
   it('shows the API as unreachable when requests fail, and still offers sign in', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
     renderApp('/');
-    await waitFor(() => expect(screen.getAllByText('API unreachable')).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByText('API unreachable')).toHaveLength(1));
     expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login');
   });
 

@@ -14,6 +14,7 @@ import {
   createMemoryAttachments,
   createMemoryGenerationJobs,
   createMemoryStorage,
+  type MemoryGenerationJobs,
 } from './memory-attachments.js';
 import { createMemoryHistory } from './memory-history.js';
 import { createMemoryModelRegistry } from './memory-model-registry.js';
@@ -33,6 +34,8 @@ function memoryStores(services: ServiceOverrides | undefined) {
   const conversations = (services?.conversations ??
     createMemoryConversations()) as MemoryConversations;
   const comparisons = (services?.comparisons ?? createMemoryComparisons()) as MemoryComparisons;
+  const generationJobs = (services?.generationJobs ??
+    createMemoryGenerationJobs()) as MemoryGenerationJobs;
   return {
     conversations,
     comparisons,
@@ -40,9 +43,12 @@ function memoryStores(services: ServiceOverrides | undefined) {
     attachments: createMemoryAttachments(
       (messageId) =>
         conversations.data.messages.find((message) => message.id === messageId)?.conversationId,
+      (attachmentId) =>
+        generationJobs.data.find((job) => job.attachmentId === attachmentId)?.conversationId ??
+        undefined,
     ),
     storage: createMemoryStorage(),
-    generationJobs: createMemoryGenerationJobs(),
+    generationJobs,
     // testEnv sets a fake GROQ_API_KEY: never let a test build the real speech-to-text adapter.
     transcription: null,
   };

@@ -140,6 +140,10 @@ export const serverEnvSchema = z
     OPENROUTER_API_KEY: optionalString,
     GEMINI_API_KEY: optionalString,
     GROQ_API_KEY: optionalString,
+
+    /** Cloudflare Workers AI, used for free image generation (set both or neither). */
+    CLOUDFLARE_ACCOUNT_ID: optionalString,
+    CLOUDFLARE_AI_API_TOKEN: optionalString,
   })
   .superRefine((env, ctx) => {
     // Storage needs both or neither: half a configuration would fail on the first upload.
@@ -148,6 +152,17 @@ export const serverEnvSchema = z
         code: 'custom',
         path: [env.SUPABASE_URL === undefined ? 'SUPABASE_URL' : 'SUPABASE_SERVICE_ROLE_KEY'],
         message: 'set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY together (or neither)',
+      });
+    }
+    if ((env.CLOUDFLARE_ACCOUNT_ID === undefined) !== (env.CLOUDFLARE_AI_API_TOKEN === undefined)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: [
+          env.CLOUDFLARE_ACCOUNT_ID === undefined
+            ? 'CLOUDFLARE_ACCOUNT_ID'
+            : 'CLOUDFLARE_AI_API_TOKEN',
+        ],
+        message: 'set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_AI_API_TOKEN together (or neither)',
       });
     }
     if (env.NODE_ENV !== 'production') return;

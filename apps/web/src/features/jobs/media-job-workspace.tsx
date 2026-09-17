@@ -22,9 +22,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { PageSpinner } from '@/components/ui/spinner';
 import { AttachmentVideo } from '@/features/attachments/attachment-video';
 import { AttachmentImage } from '@/features/chat/attachment-image';
+import { useMediaStatus } from '@/hooks/use-media-status';
 import { currentUser, useMe } from '@/hooks/use-me';
 import { ApiError } from '@/services/api';
-import { cancelJob, fetchJobs, fetchMediaStatus, startMediaJob } from '@/services/jobs';
+import { cancelJob, fetchJobs, startMediaJob } from '@/services/jobs';
 import { jobQueryKey, useMediaJob, type JobConnection } from './use-media-job';
 
 const COPY: Record<
@@ -279,11 +280,7 @@ function Generator({
 /** Image and video generation pages (Phases 8–9). Says plainly when a kind is not enabled. */
 export function MediaJobWorkspace({ kind }: { kind: MediaJobKind }) {
   const me = useMe();
-  const status = useQuery({
-    queryKey: ['media-status', kind],
-    queryFn: ({ signal }) => fetchMediaStatus(kind, signal),
-    staleTime: 60_000,
-  });
+  const status = useMediaStatus(kind);
   const copy = COPY[kind];
 
   let body: React.ReactNode;

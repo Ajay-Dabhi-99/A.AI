@@ -22,7 +22,7 @@ import { ApiError, NetworkError } from '@/services/api';
 import {
   deleteHistoryItem,
   fetchHistory,
-  renameConversation,
+  updateConversation,
   type HistoryFilters,
 } from '@/services/history';
 
@@ -51,7 +51,7 @@ function HistoryRow({ item }: { item: HistoryItem }) {
     ]);
 
   const rename = useMutation({
-    mutationFn: (next: string) => renameConversation(item.id, next),
+    mutationFn: (next: string) => updateConversation(item.id, { title: next }),
     onSuccess: async () => {
       setMode('view');
       await refresh();

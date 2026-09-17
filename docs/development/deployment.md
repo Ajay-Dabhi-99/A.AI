@@ -1,6 +1,6 @@
 # Deployment, backups and rollback
 
-How A.ai runs in production and how to release, roll back and recover. Design: [ADR-017](../decisions/ADR-017-production-hosting.md). Checklist: [release-checklist.md](release-checklist.md).
+How A.ai runs in production and how to release, roll back and recover. Design: [ADR-017](../decisions/ADR-017-production-hosting.md). Checklist: [release-checklist.md](release-checklist.md). First-time setup, step by step: [deployment-guide.md](deployment-guide.md).
 
 Replace `example.com` with your domain throughout.
 
@@ -64,19 +64,20 @@ Settings → Branches: require the `CI` checks (`Typecheck, lint, test, build` a
 
 ## API environment variables (Render)
 
-| Variable                                               | Required     | Value / source                                         |
-| ------------------------------------------------------ | ------------ | ------------------------------------------------------ |
-| `NODE_ENV`                                             | yes          | `production` (in `render.yaml`)                        |
-| `DATABASE_URL`, `DIRECT_URL`                           | yes          | Supabase pooled and direct connection strings          |
-| `REDIS_URL`                                            | yes          | Upstash, `rediss://`                                   |
-| `JWT_SECRET`                                           | yes          | 48+ random bytes; rotating it signs everyone out       |
-| `CORS_ORIGIN`, `APP_URL`                               | yes          | `https://app.example.com`                              |
-| `RESEND_API_KEY`, `EMAIL_FROM`                         | yes          | Resend, with a verified sending domain                 |
-| `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY` | at least one | Provider dashboards; check quotas for expected traffic |
-| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`            | for uploads  | Supabase (both or neither)                             |
-| `TRUST_PROXY_HOPS`                                     | no           | `1` on Render (in `render.yaml`)                       |
-| `SENTRY_DSN`                                           | no           | Sentry API project                                     |
-| `RENDER_GIT_COMMIT`                                    | automatic    | Set by Render; `/health` reports it                    |
+| Variable                                               | Required     | Value / source                                                        |
+| ------------------------------------------------------ | ------------ | --------------------------------------------------------------------- |
+| `NODE_ENV`                                             | yes          | `production` (in `render.yaml`)                                       |
+| `DATABASE_URL`, `DIRECT_URL`                           | yes          | Supabase pooled and direct connection strings                         |
+| `REDIS_URL`                                            | yes          | Upstash, `rediss://`                                                  |
+| `JWT_SECRET`                                           | yes          | 48+ random bytes; rotating it signs everyone out                      |
+| `CORS_ORIGIN`, `APP_URL`                               | yes          | `https://app.example.com`                                             |
+| `RESEND_API_KEY`, `EMAIL_FROM`                         | yes          | Resend, with a verified sending domain                                |
+| `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY` | at least one | Provider dashboards; check quotas for expected traffic                |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`            | for uploads  | Supabase (both or neither)                                            |
+| `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_AI_API_TOKEN`     | for images   | Cloudflare Workers AI REST API token (both or neither); needs storage |
+| `TRUST_PROXY_HOPS`                                     | no           | `1` on Render (in `render.yaml`)                                      |
+| `SENTRY_DSN`                                           | no           | Sentry API project                                                    |
+| `RENDER_GIT_COMMIT`                                    | automatic    | Set by Render; `/health` reports it                                   |
 
 `pnpm check:env` validates a set of variables without printing values.
 

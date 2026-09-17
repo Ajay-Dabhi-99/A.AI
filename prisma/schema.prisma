@@ -90,11 +90,15 @@ model Conversation {
   summary              String?   @db.Text
   summaryUpToMessageId String?   @db.Uuid
   summaryUpdatedAt     DateTime? @db.Timestamptz(3)
+  /// Set while the owner keeps the chat at the top of the sidebar (MODEL-062).
+  pinnedAt          DateTime?  @db.Timestamptz(3)
   createdAt         DateTime   @default(now()) @db.Timestamptz(3)
   updatedAt         DateTime   @updatedAt @db.Timestamptz(3)
   user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages          Message[]
   runs              ModelRun[]
+  /// Images created from this chat (MODEL-065).
+  generationJobs    GenerationJob[]
 
   @@index([userId, updatedAt(sort: Desc)])
   @@map("conversations")
@@ -170,15 +174,20 @@ model GenerationJob {
   status       GenerationJobStatus @default(QUEUED)
   errorCode    String?             @db.VarChar(64)
   attachmentId String?             @unique @db.Uuid
+  /// The chat the job was started from; null for jobs started elsewhere (MODEL-065).
+  conversationId String?           @db.Uuid
   createdAt    DateTime            @default(now()) @db.Timestamptz(3)
   startedAt    DateTime?           @db.Timestamptz(3)
   completedAt  DateTime?           @db.Timestamptz(3)
   user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   attachment   Attachment?         @relation(fields: [attachmentId], references: [id], onDelete: SetNull)
+  conversation Conversation?       @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   /// Recent jobs per kind (Phase 9 job list and resume after refresh).
   @@index([userId, kind, createdAt(sort: Desc)])
   @@index([status, createdAt])
+  /// A chat's images in order (MODEL-065).
+  @@index([conversationId, createdAt])
   @@map("generation_jobs")
 }
 

@@ -113,6 +113,10 @@ async function typePromptAndCompare(prompt: string, buttonName = 'Compare 2 mode
   fireEvent.click(screen.getByRole('button', { name: buttonName }));
 }
 
+/** Matches a paragraph by its whole text; streaming answers wrap each word in its own span. */
+const paragraphText = (text: string) => (_: string, element: Element | null) =>
+  element?.tagName === 'P' && element.textContent === text;
+
 describe('compare page as a guest', () => {
   it('shows each model in its own column and keeps a failed model from affecting the others', async () => {
     const api = mockApi({
@@ -221,7 +225,7 @@ describe('compare page as a guest', () => {
     await typePromptAndCompare('Explain vector databases');
 
     const groq = await screen.findByRole('article', { name: 'GPT-OSS 20B via Groq' });
-    await within(groq).findByText('Partial answer');
+    await within(groq).findByText(paragraphText('Partial answer'));
     fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
 
     await waitFor(() => expect(screen.getAllByText('Stopped')).toHaveLength(2));
