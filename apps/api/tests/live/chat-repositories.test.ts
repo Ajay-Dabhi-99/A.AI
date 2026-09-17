@@ -46,6 +46,7 @@ describe('chat migration', () => {
     const rows = await prisma.$queryRaw<{ relname: string; relrowsecurity: boolean }[]>`
       SELECT relname, relrowsecurity FROM pg_class
       WHERE relname IN ('conversations', 'messages', 'model_runs') AND relkind = 'r'
+      AND relnamespace = 'public'::regnamespace
       ORDER BY relname`;
     expect(rows).toEqual([
       { relname: 'conversations', relrowsecurity: true },
@@ -160,7 +161,8 @@ describe('Prisma conversation repository', () => {
 
   it('keeps a share per chat, with RLS, and removes it with the chat', async () => {
     const [rls] = await prisma.$queryRaw<{ relrowsecurity: boolean }[]>`
-      SELECT relrowsecurity FROM pg_class WHERE relname = 'conversation_shares' AND relkind = 'r'`;
+      SELECT relrowsecurity FROM pg_class WHERE relname = 'conversation_shares' AND relkind = 'r'
+      AND relnamespace = 'public'::regnamespace`;
     expect(rls?.relrowsecurity).toBe(true);
 
     const shares = createPrismaShareRepository(prisma);
