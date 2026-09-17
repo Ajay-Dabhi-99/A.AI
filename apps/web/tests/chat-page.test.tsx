@@ -1,6 +1,6 @@
 import type { AIModel, ChatMessage } from '@a-ai/shared-types';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useModelStore } from '../src/stores/model-store';
 import {
   baseRoutes,
@@ -124,6 +124,114 @@ function typeAndSend(text: string) {
 /** Matches a paragraph by its whole text; streaming answers wrap each word in its own span. */
 const paragraphText = (text: string) => (_: string, element: Element | null) =>
   element?.tagName === 'P' && element.textContent === text;
+
+describe('copy, regenerate and edit (MODEL-068)', () => {
+  /** A guest chat whose answers come from `answers` in order; each request body is recorded. */
+  function answering(answers: (string | Response)[]) {
+    let turn = 0;
+    return mockApi(
+      guestRoutes({
+        'POST /api/chat': (init) => {
+          const next = answers[turn++];
+          if (next instanceof Response) return next;
+          return sse([START, ['message.delta', { runId: 'r1', text: next ?? '' }], DONE], init);
+        },
+      }),
+    );
+  }
+
+  it('copies an answer and a code block', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    answering(['Use this:\n\n```js\nconsole.log(1);\n```']);
+    renderApp('/chat');
+    await screen.findByLabelText('Message');
+    typeAndSend('Show code');
+    // The answer's own Copy button appears once it has finished typing.
+    await screen.findByRole('button', { name: 'Regenerate' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy code' }));
+    await waitFor(() => expect(writeText).toHaveBeenLastCalledWith('console.log(1);\n'));
+
+    const answer = screen.getAllByRole('button', { name: 'Copy' }).at(-1)!;
+    fireEvent.click(answer);
+    await waitFor(() =>
+      expect(writeText).toHaveBeenLastCalledWith('Use this:\n\n```js\nconsole.log(1);\n```'),
+    );
+    expect(await screen.findAllByRole('button', { name: 'Copied' })).not.toHaveLength(0);
+  });
+
+  it('regenerates the latest answer in place', async () => {
+    const api = answering(['First answer.', 'Second answer.']);
+    renderApp('/chat');
+    await screen.findByLabelText('Message');
+    typeAndSend('Tell me something');
+    await screen.findByText(paragraphText('First answer.'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Regenerate' }));
+    expect(await screen.findByText('Second answer.')).toBeInTheDocument();
+    expect(screen.queryByText('First answer.')).not.toBeInTheDocument();
+    expect(JSON.parse(String(callsTo(api, 'POST /api/chat')[1]?.body))).toEqual({
+      provider: 'groq',
+      model: 'openai/gpt-oss-20b',
+      regenerate: true,
+    });
+    expect(screen.getAllByText('Tell me something')).toHaveLength(1);
+  });
+
+  it('puts the answer back when a regenerate is refused', async () => {
+    answering([
+      'Keep me.',
+      errorResponse(429, 'QUOTA_EXCEEDED', 'You have used all 20 messages for today.'),
+    ]);
+    renderApp('/chat');
+    await screen.findByLabelText('Message');
+    typeAndSend('Question');
+    await screen.findByText(paragraphText('Keep me.'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Regenerate' }));
+    expect(await screen.findByText('You have used all 20 messages for today.')).toBeInTheDocument();
+    expect(screen.getByText('Keep me.')).toBeInTheDocument();
+  });
+
+  it('edits only the latest question and answers it again', async () => {
+    const api = answering(['Paris.', 'Berlin.', 'Rome.']);
+    renderApp('/chat');
+    await screen.findByLabelText('Message');
+    typeAndSend('Capital of France?');
+    await screen.findByText(paragraphText('Paris.'));
+    typeAndSend('Capital of Germany?');
+    await screen.findByText(paragraphText('Berlin.'));
+
+    // Only the latest question can be edited.
+    expect(screen.getAllByRole('button', { name: 'Edit message' })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit message' }));
+    const field = screen.getByRole('textbox', { name: 'Edit your message' });
+    expect(field).toHaveValue('Capital of Germany?');
+
+    // Escape leaves it unchanged.
+    fireEvent.keyDown(field, { key: 'Escape' });
+    expect(screen.queryByRole('textbox', { name: 'Edit your message' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit message' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Edit your message' }), {
+      target: { value: 'Capital of Italy?' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save & send' }));
+
+    expect(await screen.findByText('Rome.')).toBeInTheDocument();
+    expect(screen.queryByText('Berlin.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Capital of Germany?')).not.toBeInTheDocument();
+    expect(screen.getByText('Capital of Italy?')).toBeInTheDocument();
+    expect(screen.getByText('Paris.')).toBeInTheDocument();
+    expect(JSON.parse(String(callsTo(api, 'POST /api/chat')[2]?.body))).toEqual({
+      provider: 'groq',
+      model: 'openai/gpt-oss-20b',
+      edit: true,
+      message: 'Capital of Italy?',
+    });
+  });
+});
 
 describe('chat page as a guest', () => {
   it('streams an answer, renders Markdown and shows the daily allowance', async () => {

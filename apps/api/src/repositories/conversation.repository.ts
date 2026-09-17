@@ -110,6 +110,18 @@ export interface ConversationRepository {
   listForUser(userId: string, limit: number): Promise<ConversationRecord[]>;
   /** Oldest first, each with its run when it has one. */
   listMessages(conversationId: string): Promise<MessageRecord[]>;
+  /**
+   * Keeps the conversation up to `messageId` and deletes every later message
+   * (their runs stay, unlinked). With `content`, that message's text is replaced
+   * too. A summary covering a deleted message is cleared. Marks the chat active.
+   * Returns the deleted message ids.
+   */
+  rewindTo(
+    conversationId: string,
+    messageId: string,
+    content?: string,
+    at?: Date,
+  ): Promise<string[]>;
   /** Marks the conversation as recently active (an image was created in it). */
   touch(id: string, at: Date): Promise<void>;
   /** Adds the message and marks the conversation as recently active. */
@@ -160,6 +172,30 @@ export function createPrismaConversationRepository(prisma: PrismaClient): Conver
         where: { conversationId },
         orderBy: { createdAt: 'asc' },
         include: { run: true },
+      }),
+
+    rewindTo: (conversationId, messageId, content, at = new Date()) =>
+      prisma.$transaction(async (tx) => {
+        const target = await tx.message.findFirstOrThrow({
+          where: { id: messageId, conversationId },
+        });
+        if (content !== undefined) {
+          await tx.message.update({ where: { id: target.id }, data: { content } });
+        }
+        const later = await tx.message.findMany({
+          where: { conversationId, createdAt: { gte: target.createdAt }, id: { not: target.id } },
+          select: { id: true },
+        });
+        const ids = later.map((row) => row.id);
+        if (ids.length > 0) {
+          await tx.message.deleteMany({ where: { id: { in: ids } } });
+          await tx.conversation.updateMany({
+            where: { id: conversationId, summaryUpToMessageId: { in: ids } },
+            data: { summary: null, summaryUpToMessageId: null, summaryUpdatedAt: null },
+          });
+        }
+        await tx.conversation.update({ where: { id: conversationId }, data: { updatedAt: at } });
+        return ids;
       }),
 
     touch: async (id, at) => {

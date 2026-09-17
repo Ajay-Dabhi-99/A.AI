@@ -34,28 +34,52 @@ Each chat in `ConversationListResponse` and `ConversationDetail` is a `Conversat
 { "provider": "groq", "model": "openai/gpt-oss-20b", "retry": true, "conversationId": "…" }
 ```
 
+```json
+{ "provider": "groq", "model": "openai/gpt-oss-20b", "regenerate": true, "conversationId": "…" }
+```
+
+```json
+{
+  "provider": "groq",
+  "model": "openai/gpt-oss-20b",
+  "edit": true,
+  "message": "Explain RAG in two sentences",
+  "conversationId": "…"
+}
+```
+
 | Field               | Rule                                                                                                                                                        |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `provider`, `model` | Must match an entry in `GET /api/models`                                                                                                                    |
-| `message`           | 1–16,000 characters after trimming; exactly one of `message` or `retry`                                                                                     |
+| `message`           | 1–16,000 characters after trimming; required unless `retry` or `regenerate` is set                                                                          |
 | `retry`             | Answers the last unanswered user message again without repeating it                                                                                         |
+| `regenerate`        | MODEL-068. Deletes the latest answer and answers the latest question again. The chat must end with an answer                                                |
+| `edit`              | MODEL-068. With `message`: replaces the latest question's text, deletes everything after it, and answers again. Not for questions sent with images          |
 | `conversationId`    | Users only; omit to start a new conversation. Ignored for guests.                                                                                           |
 | `attachmentIds`     | Phase 8. Users only; up to 4 distinct uploaded images, with `message` only (not `retry`). The model must support vision. See [attachments](attachments.md). |
 
 ### Rejected before streaming (JSON errors)
 
-| Status | Code                | When                                                                                      |
-| ------ | ------------------- | ----------------------------------------------------------------------------------------- |
-| 400    | `VALIDATION_ERROR`  | Bad body, or retry with nothing to retry                                                  |
-| 400    | `VALIDATION_ERROR`  | Images for a model without vision, or an image that is not yours, missing or already sent |
-| 401    | `AUTH_REQUIRED`     | A guest sent `attachmentIds`                                                              |
-| 400    | `MODEL_UNAVAILABLE` | Model not offered by this instance                                                        |
-| 404    | `NOT_FOUND`         | Conversation does not exist or is not yours                                               |
-| 422    | `CONTEXT_TOO_LARGE` | The newest message alone cannot fit the model                                             |
-| 429    | `QUOTA_EXCEEDED`    | Daily allowance used up (`Retry-After` until midnight UTC)                                |
-| 429    | `RATE_LIMITED`      | Too many requests                                                                         |
+| Status | Code                | When                                                                                           |
+| ------ | ------------------- | ---------------------------------------------------------------------------------------------- |
+| 400    | `VALIDATION_ERROR`  | Bad body, or retry with nothing to retry                                                       |
+| 400    | `VALIDATION_ERROR`  | Regenerate with no answer to replace, edit with no question, or edit of a question with images |
+| 400    | `VALIDATION_ERROR`  | Images for a model without vision, or an image that is not yours, missing or already sent      |
+| 401    | `AUTH_REQUIRED`     | A guest sent `attachmentIds`                                                                   |
+| 400    | `MODEL_UNAVAILABLE` | Model not offered by this instance                                                             |
+| 404    | `NOT_FOUND`         | Conversation does not exist or is not yours                                                    |
+| 422    | `CONTEXT_TOO_LARGE` | The newest message alone cannot fit the model                                                  |
+| 429    | `QUOTA_EXCEEDED`    | Daily allowance used up (`Retry-After` until midnight UTC)                                     |
+| 429    | `RATE_LIMITED`      | Too many requests                                                                              |
 
 None of these use up allowance.
+
+### Regenerate and edit (MODEL-068)
+
+- At most one of `retry`, `regenerate` and `edit`; `attachmentIds` only with a plain new message.
+- Both act on the latest question only (image requests are not questions). The chat is rewound after the request is accepted (allowance used) and before the model is called: deleted answers keep their runs in the history with no message, and a summary that covered a deleted message is dropped. Regenerate or edit counts as one message.
+- Guests: the same, on the temporary chat.
+- If the new answer fails, the chat ends with the question, so `retry` answers it.
 
 ### Stream
 

@@ -1,8 +1,12 @@
 import type { AIModel, ErrorCode } from '@a-ai/shared-types';
-import { Image as ImageIcon, Volume2, VolumeX } from 'lucide-react';
+import { Image as ImageIcon, Pencil, RefreshCw, Volume2, VolumeX } from 'lucide-react';
+import { useState, type KeyboardEvent } from 'react';
+import { CHAT_MESSAGE_MAX_LENGTH } from '@a-ai/validation';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { AttachmentImage } from './attachment-image';
 import { ChatImageJob } from './chat-image-job';
+import { CopyButton } from './copy-button';
 import { Markdown } from './markdown';
 import { ThinkingIndicator } from './thinking-indicator';
 import type { UiMessage } from './use-chat-session';
@@ -29,6 +33,8 @@ export function MessageView({
   models,
   imageModels = [],
   speech,
+  onRegenerate,
+  onEdit,
 }: {
   message: UiMessage;
   models: AIModel[];
@@ -36,8 +42,38 @@ export function MessageView({
   imageModels?: { provider: string; model: string; name: string }[];
   /** Read-aloud control; absent when the browser has no speech voices. */
   speech?: { speaking: boolean; onToggle: () => void } | undefined;
+  /** Offered on the latest answer only (MODEL-068). */
+  onRegenerate?: (() => void) | undefined;
+  /** Offered on the latest question only; resolves false if the edit was rejected. */
+  onEdit?: ((text: string) => Promise<boolean>) | undefined;
 }) {
   const smooth = useSmoothText(message.content, message.role !== 'user' && !!message.pending);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(message.content);
+  const [saving, setSaving] = useState(false);
+
+  async function saveEdit() {
+    const text = draft.trim();
+    if (!onEdit || !text || text.length > CHAT_MESSAGE_MAX_LENGTH || saving) return;
+    if (text === message.content) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    const accepted = await onEdit(text);
+    setSaving(false);
+    if (accepted) setEditing(false);
+  }
+
+  function onEditKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setEditing(false);
+    } else if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+      event.preventDefault();
+      void saveEdit();
+    }
+  }
 
   if (message.role === 'user') {
     return (
@@ -54,15 +90,70 @@ export function MessageView({
             ))}
           </ul>
         )}
-        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-primary/10 px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap text-foreground">
-          {message.imagePrompt && (
-            <span className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-primary">
-              <ImageIcon className="size-3.5" aria-hidden="true" />
-              Create image
-            </span>
-          )}
-          {message.content}
-        </div>
+        {editing ? (
+          <div className="w-full max-w-[85%] rounded-2xl border border-primary/40 bg-surface p-2 shadow-sm">
+            <label htmlFor={`edit-${message.id}`} className="sr-only">
+              Edit your message
+            </label>
+            <textarea
+              id={`edit-${message.id}`}
+              autoFocus
+              value={draft}
+              rows={Math.min(8, Math.max(2, draft.split('\n').length))}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={onEditKeyDown}
+              onFocus={(event) =>
+                event.target.setSelectionRange(event.target.value.length, event.target.value.length)
+              }
+              className="block w-full resize-none bg-transparent px-2 py-1.5 text-sm text-foreground focus:outline-none"
+            />
+            <div className="flex items-center justify-end gap-2 px-1 pt-1">
+              {draft.trim().length > CHAT_MESSAGE_MAX_LENGTH && (
+                <span className="mr-auto text-xs text-danger">Too long</span>
+              )}
+              <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={saving || !draft.trim() || draft.trim().length > CHAT_MESSAGE_MAX_LENGTH}
+                onClick={() => void saveEdit()}
+              >
+                {saving ? 'Sending…' : 'Save & send'}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="max-w-[85%] rounded-2xl rounded-br-md bg-primary/10 px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap text-foreground">
+            {message.imagePrompt && (
+              <span className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-primary">
+                <ImageIcon className="size-3.5" aria-hidden="true" />
+                Create image
+              </span>
+            )}
+            {message.content}
+          </div>
+        )}
+        {!editing && message.content && (
+          <div className="user-actions flex items-center gap-1">
+            <CopyButton text={message.content} showLabel={false} />
+            {onEdit && (
+              <button
+                type="button"
+                aria-label="Edit message"
+                title="Edit message"
+                onClick={() => {
+                  setDraft(message.content);
+                  setEditing(true);
+                }}
+                className="message-action"
+              >
+                <Pencil className="size-3.5" aria-hidden="true" />
+              </button>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -101,8 +192,20 @@ export function MessageView({
           <Markdown streaming={smooth.typing}>{smooth.text}</Markdown>
         </div>
       )}
-      {!smooth.typing && (run || (speech && message.content)) && (
-        <div className="mt-2 flex items-center gap-3">
+      {!smooth.typing && (run || message.content) && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+          {message.content && <CopyButton text={message.content} />}
+          {onRegenerate && (
+            <button
+              type="button"
+              onClick={onRegenerate}
+              className="message-action"
+              title="Answer again"
+            >
+              <RefreshCw className="size-3.5" aria-hidden="true" />
+              <span>Regenerate</span>
+            </button>
+          )}
           {run && (
             <p className="font-mono text-xs text-muted-foreground">
               {modelName(models, run.provider, run.model)}

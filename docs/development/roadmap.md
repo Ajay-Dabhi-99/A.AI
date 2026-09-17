@@ -95,6 +95,7 @@ The blueprint defines MODEL-001 to MODEL-014. IDs from MODEL-015 on are added he
 | MODEL-065 | Create images inside the chat (no separate tab)           | P8    | CODE COMPLETE                     |
 | MODEL-066 | Topics after signing in and topic-based starter prompts   | P1    | CODE COMPLETE                     |
 | MODEL-067 | Follow-up question suggestions after each answer          | P2    | CODE COMPLETE (real call PASS)    |
+| MODEL-068 | Copy, regenerate and edit messages                        | P2    | CODE COMPLETE (real call PASS)    |
 | MODEL-017 | Groq provider                                             | P2    | CODE COMPLETE (real call PASS)    |
 | MODEL-009 | OpenRouter provider                                       | P2    | CODE COMPLETE (real call PASS)    |
 | MODEL-010 | Gemini provider                                           | P2    | CODE COMPLETE (used in the app)   |
@@ -156,5 +157,12 @@ MODEL-067 (2026-09-17): follow-up suggestions.
 - Web: `features/chat/follow-up-suggestions.tsx` under the latest answer completed in this session (`UiMessage.fresh`); a click sends the question.
 - Tests: `apps/api/tests/unit/suggestion.service.test.ts` (parsing, candidates, fallback, provider down, disabled, rate limit), `apps/api/tests/integration/chat.test.ts` (guest and user, allowance untouched, empty on failure, 400, disabled), `apps/web/tests/chat-page.test.tsx` (request body, click sends, only the latest answer).
 - Real check: the restarted API answered a guest request with three relevant questions from Groq in 2.0 s. Edge screenshots of the topics dialog, topic starters and follow-up chips.
+
+MODEL-068 (2026-09-17): copy, regenerate and edit, on branch `feature/message-actions`.
+
+- API: `regenerate` and `edit` on `POST /api/chat` (`chatRequestSchema`); `ChatService.prepare` rewinds to the latest question (the edited text replaces it; a question with images cannot be edited); `ConversationRepository.rewindTo` (one transaction: update the text, delete later messages, clear a summary that covered them, mark the chat active); guests rewind their Redis chat and drop a stale guest summary. No migration: `model_runs.messageId` is already `ON DELETE SET NULL`.
+- Web: `features/chat/copy-button.tsx` (clipboard with a fallback, "Copied" for 2 s); a copy button on every code block (`markdown.tsx`); Copy and Regenerate under answers, Regenerate on the latest answer only; Copy and Edit on the latest question (inline editor: Enter or Save & send, Escape or Cancel); `use-chat-session.ts` `regenerate` and `edit` update the chat at once and restore it if the server refuses.
+- Tests: `packages/validation/tests/chat.test.ts` (valid and mixed requests), `apps/api/tests/integration/chat.test.ts` (user regenerate and edit with runs kept and allowance counted, nothing to regenerate or edit without using allowance, guests), `apps/api/tests/live/chat-repositories.test.ts` (rewind with summary and run unlinking; not run), `apps/web/tests/chat-page.test.tsx` (copy answer and code, regenerate, refused regenerate restores the answer, edit of the latest question only). `pnpm verify` PASS (478 unit, 108 integration).
+- Real checks: `rewindTo` against Supabase with a temporary user (text replaced, answer deleted, run unlinked, summary cleared, no-op when nothing follows; user deleted afterwards). Through the restarted API as a guest with Groq: ask, regenerate, edit; the saved chat held only the edited question and its answer. Edge screenshots of the answer actions, the code copy button and the inline editor.
 
 MODEL-008 is listed in the blueprint between Phase 1 tasks, but the provider interface skeleton is Phase 0 scope (§16), so it was delivered there.

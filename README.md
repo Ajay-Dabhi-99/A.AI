@@ -18,6 +18,7 @@
 - **Model registry:** one catalog of models, capabilities and prices; admins can enable or disable models.
 - **Context management:** conversations stay within each model's context budget, with background summaries for long chats.
 - **Multimodal:** image upload for vision models, voice input (speech-to-text with Groq) and read-aloud. Images are created right in the chat (free FLUX.1 [schnell] on Cloudflare Workers AI). Image and video generation use resumable background jobs; video has no provider yet, and the app says so.
+- **Message actions:** copy answers and code blocks, regenerate the latest answer, and edit your latest question.
 - **Personal suggestions:** pick up to three topics after signing in for tailored starter prompts, and get suggested follow-up questions after every answer.
 - **Provider-agnostic:** OpenRouter, Google Gemini and Groq behind one provider interface.
 

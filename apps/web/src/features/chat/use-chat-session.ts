@@ -8,7 +8,7 @@ import type {
   RunError,
 } from '@a-ai/shared-types';
 import { useQueryClient } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ME_QUERY_KEY } from '@/hooks/use-me';
 import { ApiError, NetworkError } from '@/services/api';
 import { jobQueryKey } from '@/features/jobs/use-media-job';
@@ -48,6 +48,29 @@ function imageRows(job: MediaJob): UiMessage[] {
       mediaJob: job,
     },
   ];
+}
+
+type RunRequest =
+  | { kind: 'send'; text: string; attachments: Attachment[] }
+  | { kind: 'retry' }
+  | { kind: 'regenerate' }
+  | { kind: 'edit'; text: string };
+
+/** Index of the latest question (image requests are not questions). */
+export function lastQuestionIndex(messages: UiMessage[]): number {
+  return messages.findLastIndex((message) => message.role === 'user' && !message.imagePrompt);
+}
+
+/** The chat as the server will have it once a regenerate or edit starts. */
+function rewound(messages: UiMessage[], request: RunRequest): UiMessage[] {
+  if (request.kind !== 'regenerate' && request.kind !== 'edit') return messages;
+  const index = lastQuestionIndex(messages);
+  if (index < 0) return messages;
+  return messages
+    .slice(0, index + 1)
+    .map((message, at) =>
+      at === index && request.kind === 'edit' ? { ...message, content: request.text } : message,
+    );
 }
 
 /** Saved messages and the chat's images in one timeline, oldest first. */
@@ -103,15 +126,19 @@ export function useChatSession(options: {
   const [context, setContext] = useState<ChatContextInfo | null>(null);
   const conversationRef = useRef(options.conversationId);
   const abortRef = useRef<AbortController | null>(null);
+  // The latest messages, so an edit or regenerate can be undone if the server refuses it.
+  const messagesRef = useRef(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
-  async function run(
-    model: ModelRef,
-    message: string | null,
-    attachments: Attachment[] = [],
-  ): Promise<boolean> {
+  async function run(model: ModelRef, request: RunRequest): Promise<boolean> {
     const controller = new AbortController();
     abortRef.current = controller;
     const now = new Date().toISOString();
+    const message = request.kind === 'send' ? request.text : null;
+    const attachments = request.kind === 'send' ? request.attachments : [];
+    const before = messagesRef.current;
     const userId = message ? `local-${crypto.randomUUID()}` : null;
     const answerId = `pending-${crypto.randomUUID()}`;
     const requested = { provider: model.provider, model: model.id };
@@ -120,7 +147,7 @@ export function useChatSession(options: {
     setFailure(null);
     setStreaming(true);
     setMessages((current) => [
-      ...current,
+      ...rewound(current, request),
       ...(message && userId
         ? [
             {
@@ -201,7 +228,13 @@ export function useChatSession(options: {
         {
           provider: model.provider,
           model: model.id,
-          ...(message ? { message } : { retry: true }),
+          ...(request.kind === 'send'
+            ? { message: request.text }
+            : request.kind === 'edit'
+              ? { edit: true, message: request.text }
+              : request.kind === 'regenerate'
+                ? { regenerate: true }
+                : { retry: true }),
           ...(attachments.length > 0
             ? { attachmentIds: attachments.map((attachment) => attachment.id) }
             : {}),
@@ -213,6 +246,11 @@ export function useChatSession(options: {
       );
       return true;
     } catch (error) {
+      if (controller.signal.aborted && !accepted && request.kind !== 'send') {
+        // Stopped before the server rewound anything: put the chat back as it was.
+        setMessages(before);
+        return true;
+      }
       if (controller.signal.aborted) {
         // Stopped before the server answered anything: nothing to keep.
         setMessages((current) =>
@@ -230,6 +268,10 @@ export function useChatSession(options: {
       removeAnswer();
       if (!accepted && userId) {
         setMessages((current) => current.filter((item) => item.id !== userId));
+      }
+      // A refused edit or regenerate changed nothing on the server.
+      if (!accepted && (request.kind === 'edit' || request.kind === 'regenerate')) {
+        setMessages(before);
       }
       if (error instanceof ApiError) {
         setFailure({
@@ -302,8 +344,12 @@ export function useChatSession(options: {
     context,
     /** Resolves false when the message was rejected before the answer started (the draft should be restored). */
     send: (model: ModelRef, text: string, attachments: Attachment[] = []) =>
-      run(model, text, attachments),
-    retry: (model: ModelRef) => run(model, null),
+      run(model, { kind: 'send', text, attachments }),
+    retry: (model: ModelRef) => run(model, { kind: 'retry' }),
+    /** Replaces the latest answer with a new one (MODEL-068). */
+    regenerate: (model: ModelRef) => run(model, { kind: 'regenerate' }),
+    /** Replaces the latest question and answers it again. */
+    edit: (model: ModelRef, text: string) => run(model, { kind: 'edit', text }),
     stop: () => abortRef.current?.abort(new DOMException('Stopped by the user', 'AbortError')),
     dismissFailure: () => setFailure(null),
   };

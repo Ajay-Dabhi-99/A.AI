@@ -58,6 +58,7 @@ export const fakeHasher: PasswordHasher = {
 export const noAttachments: ChatServiceDeps['attachments'] = {
   prepareForMessage: async () => ({ attachments: [], images: [] }),
   attach: async () => undefined,
+  forMessages: async () => new Map(),
 };
 
 export function silentLogger(): FastifyBaseLogger & {

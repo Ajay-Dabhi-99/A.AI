@@ -284,6 +284,107 @@ describe('POST /api/chat as a signed-in user', () => {
   });
 });
 
+describe('regenerate and edit (MODEL-068)', () => {
+  const text = (response: LightMyRequestResponse) =>
+    events(response)
+      .filter((event) => event.event === 'message.delta')
+      .map((event) => event.data.text)
+      .join('');
+
+  it('replaces the latest answer, or the latest question and its answer, for a user', async () => {
+    ctx = await buildChatTestApp();
+    ctx.provider.setScripts(
+      [say('First answer'), done],
+      [say('Second answer'), done],
+      [say('Third answer'), done],
+    );
+    const cookies = { [SESSION]: await signedInUser(ctx) };
+    const first = events(await chat(ctx, { message: 'What is RAG?' }, cookies));
+    const conversationId = first[0]?.event === 'message.start' ? first[0].data.conversationId : '';
+
+    const regenerated = await chat(ctx, { regenerate: true, conversationId }, cookies);
+    expect(regenerated.statusCode).toBe(200);
+    expect(text(regenerated)).toBe('Second answer');
+    expect(ctx.provider.requests.at(-1)?.messages.map((m) => [m.role, m.content])).toEqual([
+      ['system', expect.any(String)],
+      ['user', 'What is RAG?'],
+    ]);
+
+    const edited = await chat(
+      ctx,
+      { edit: true, message: 'What is RAG in AI?', conversationId },
+      cookies,
+    );
+    expect(text(edited)).toBe('Third answer');
+    expect(ctx.provider.requests.at(-1)?.messages.at(-1)?.content).toBe('What is RAG in AI?');
+
+    const detail = conversationDetailSchema.parse(
+      (await ctx.app.inject({ url: `/api/conversations/${conversationId}`, cookies })).json(),
+    );
+    expect(detail.messages.map((message) => [message.role, message.content])).toEqual([
+      ['user', 'What is RAG in AI?'],
+      ['assistant', 'Third answer'],
+    ]);
+    // Replaced answers leave their runs in the history, unlinked.
+    expect(ctx.conversations.data.runs).toHaveLength(3);
+    expect(ctx.conversations.data.runs.filter((run) => run.messageId !== null)).toHaveLength(1);
+    const me = meResponseSchema.parse((await ctx.app.inject({ url: '/api/me', cookies })).json());
+    expect(me.quota.used).toBe(3);
+  });
+
+  it('refuses when there is nothing to regenerate or edit, without using allowance', async () => {
+    ctx = await buildChatTestApp();
+    const cookies = { [SESSION]: await signedInUser(ctx) };
+
+    const nothing = await chat(ctx, { regenerate: true }, cookies);
+    expect(nothing.statusCode).toBe(400);
+    expect(nothing.json().error).toMatchObject({
+      code: 'VALIDATION_ERROR',
+      message: 'There is no answer to regenerate.',
+    });
+    const noEdit = await chat(ctx, { edit: true, message: 'changed' }, cookies);
+    expect(noEdit.json().error.message).toBe('There is no message to edit.');
+
+    // A question whose answer failed has nothing to regenerate (retry is for that).
+    ctx.provider.setScripts([
+      {
+        type: 'throw',
+        error: new AIProviderError({
+          provider: 'scripted',
+          code: 'PROVIDER_BAD_RESPONSE',
+          message: 'bad',
+        }),
+      },
+    ]);
+    const failed = events(await chat(ctx, { message: 'Hello?' }, cookies));
+    const conversationId =
+      failed[0]?.event === 'message.start' ? failed[0].data.conversationId : '';
+    expect((await chat(ctx, { regenerate: true, conversationId }, cookies)).statusCode).toBe(400);
+
+    const me = meResponseSchema.parse((await ctx.app.inject({ url: '/api/me', cookies })).json());
+    expect(me.quota.used).toBe(0);
+    expect((await chat(ctx, { regenerate: true, message: 'x' }, cookies)).statusCode).toBe(400);
+  });
+
+  it('works for guests and keeps only the rewound chat', async () => {
+    ctx = await buildChatTestApp();
+    ctx.provider.setScripts([say('One'), done], [say('Two'), done], [say('Three'), done]);
+    const first = await chat(ctx, { message: 'Hi' });
+    const guest = { [GUEST]: cookieValue(first, GUEST)! };
+
+    expect(text(await chat(ctx, { regenerate: true }, guest))).toBe('Two');
+    expect(text(await chat(ctx, { edit: true, message: 'Hello' }, guest))).toBe('Three');
+
+    const saved = guestConversationResponseSchema.parse(
+      (await ctx.app.inject({ url: '/api/guest/conversation', cookies: guest })).json(),
+    );
+    expect(saved.messages.map((message) => [message.role, message.content])).toEqual([
+      ['user', 'Hello'],
+      ['assistant', 'Three'],
+    ]);
+  });
+});
+
 describe('POST /api/guest/migrate', () => {
   it('moves the guest chat into the new account exactly once', async () => {
     ctx = await buildChatTestApp();

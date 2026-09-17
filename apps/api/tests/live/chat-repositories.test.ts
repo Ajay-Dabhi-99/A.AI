@@ -93,6 +93,51 @@ describe('Prisma conversation repository', () => {
     expect(await conversations.findForUser(conversation.id, randomUUID())).toBeNull();
   });
 
+  it('rewinds to a question, replacing its text and unlinking later answers', async () => {
+    const userId = await newUser();
+    const conversation = await conversations.create({ userId, title: 'Rewind' });
+    const question = await conversations.addUserMessage(conversation.id, 'first question');
+    const run = await conversations.startRun({
+      conversationId: conversation.id,
+      provider: 'groq',
+      model: 'openai/gpt-oss-20b',
+    });
+    const { message } = await conversations.completeRun(run.id, {
+      conversationId: conversation.id,
+      status: 'COMPLETED',
+      messageContent: 'first answer',
+      ttftMs: null,
+      latencyMs: 500,
+      inputTokens: null,
+      outputTokens: null,
+      usageSource: null,
+      errorCode: null,
+      estimatedCostUsd: null,
+      completedAt: new Date(),
+    });
+    await prisma.conversation.update({
+      where: { id: conversation.id },
+      data: { summary: 'old', summaryUpToMessageId: message!.id },
+    });
+
+    const removed = await conversations.rewindTo(conversation.id, question.id, 'edited question');
+
+    expect(removed).toEqual([message!.id]);
+    const messages = await conversations.listMessages(conversation.id);
+    expect(messages.map((item) => [item.role, item.content])).toEqual([
+      ['USER', 'edited question'],
+    ]);
+    expect(await prisma.modelRun.findUniqueOrThrow({ where: { id: run.id } })).toMatchObject({
+      messageId: null,
+    });
+    expect(await conversations.findForUser(conversation.id, userId)).toMatchObject({
+      summary: null,
+      summaryUpToMessageId: null,
+    });
+    // Nothing after the question: a no-op apart from the text.
+    expect(await conversations.rewindTo(conversation.id, question.id)).toEqual([]);
+  });
+
   it('imports a guest chat idempotently, even when two imports race', async () => {
     const userId = await newUser();
     const payload = {

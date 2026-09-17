@@ -24,6 +24,28 @@ describe('chatRequestSchema', () => {
     expect(chatRequestSchema.safeParse({ ...base, message: '   ' }).success).toBe(false);
   });
 
+  it('accepts regenerate on its own and edit with the new text', () => {
+    expect(chatRequestSchema.safeParse({ ...base, regenerate: true }).success).toBe(true);
+    expect(chatRequestSchema.parse({ ...base, edit: true, message: ' new ' }).message).toBe('new');
+  });
+
+  it('refuses mixed or incomplete regenerate and edit requests', () => {
+    for (const body of [
+      { ...base, regenerate: true, message: 'hi' },
+      { ...base, edit: true },
+      { ...base, edit: true, retry: true, message: 'hi' },
+      { ...base, regenerate: true, retry: true },
+      {
+        ...base,
+        edit: true,
+        message: 'hi',
+        attachmentIds: ['3f1b8e8a-2d7b-4b8f-9d2a-6f0c1e2b3a4d'],
+      },
+    ]) {
+      expect(chatRequestSchema.safeParse(body).success).toBe(false);
+    }
+  });
+
   it('rejects oversized messages and malformed conversation ids', () => {
     expect(chatRequestSchema.safeParse({ ...base, message: 'x'.repeat(16_001) }).success).toBe(
       false,

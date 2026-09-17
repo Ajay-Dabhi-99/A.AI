@@ -21,7 +21,12 @@ import { MessageView } from './message-view';
 import { starterPrompts } from '@/features/onboarding/topic-suggestions';
 import { currentUser, useMe } from '@/hooks/use-me';
 import { FollowUpSuggestions } from './follow-up-suggestions';
-import { useChatSession, withMediaJobs, type UiMessage } from './use-chat-session';
+import {
+  lastQuestionIndex,
+  useChatSession,
+  withMediaJobs,
+  type UiMessage,
+} from './use-chat-session';
 import { speechSupported, useReadAloud } from './use-read-aloud';
 import { voiceInputSupported } from './use-voice-input';
 
@@ -162,6 +167,25 @@ export function ChatPanel({
     list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
   };
 
+  // Regenerate and edit apply to the latest question and its answer only (MODEL-068).
+  const questionIndex = lastQuestionIndex(session.messages);
+  const question = session.messages[questionIndex];
+  const answer = session.messages[questionIndex + 1];
+  const tailIsQuestionAndAnswer =
+    questionIndex >= 0 && questionIndex >= session.messages.length - 2;
+  const canRegenerate =
+    tailIsQuestionAndAnswer &&
+    answer?.role === 'assistant' &&
+    !answer.pending &&
+    !answer.mediaJob &&
+    Boolean(answer.content) &&
+    !session.streaming;
+  const canEdit =
+    tailIsQuestionAndAnswer &&
+    !session.streaming &&
+    !question?.attachments?.length &&
+    (answer === undefined || (!answer.pending && !answer.mediaJob));
+
   const send = (text: string, attachments: Attachment[] = []) =>
     model ? session.send(model, text, attachments) : Promise.resolve(false);
   const { failure } = session;
@@ -224,6 +248,16 @@ export function ChatPanel({
                               speaking: readAloud.speakingId === message.id,
                               onToggle: () => readAloud.toggle(message.id, message.content),
                             }
+                          : undefined
+                      }
+                      onRegenerate={
+                        canRegenerate && index === questionIndex + 1 && model
+                          ? () => void session.regenerate(model)
+                          : undefined
+                      }
+                      onEdit={
+                        canEdit && index === questionIndex && model
+                          ? (text) => session.edit(model, text)
                           : undefined
                       }
                     />
