@@ -1,0 +1,51 @@
+# Keeps the Render free web service awake (free hosting guide, Step 27).
+#
+# A free instance sleeps after 15 idle minutes and then needs about a minute to
+# answer the first request. This job pings /health often enough to prevent that.
+#
+# Two limits of GitHub's scheduler to know about:
+#   - scheduled runs are best effort and are often 10-30 minutes late, or skipped
+#     under load, so the interval here is 5 minutes to keep the gaps under 15;
+#   - GitHub disables scheduled workflows after 60 days without repository
+#     activity. Re-enable it in the Actions tab if that happens.
+# An external monitor (cron-job.org, UptimeRobot) does not have either limit.
+#
+# /health is deliberate: it touches neither Postgres nor Redis, so pinging it
+# does not spend the Upstash command quota. Never point this at /ready.
+name: Keep API awake
+
+on:
+  schedule:
+    # 01:00-19:59 UTC = 06:30-01:29 IST. A full day (`*/5 * * * *`) would use
+    # about 744 of Render's 750 free instance hours a month, leaving no margin;
+    # this window uses about 570 and lets the service sleep overnight.
+    - cron: '*/5 1-19 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keep-alive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping the API health endpoint
+        env:
+          # Override without editing this file: Settings -> Secrets and variables
+          # -> Actions -> Variables -> KEEP_ALIVE_URL.
+          URL: ${{ vars.KEEP_ALIVE_URL || 'https://a-ai-csbq.onrender.com/health' }}
+        run: |
+          set -euo pipefail
+          # --max-time 90 covers a cold start; the retries cover a wake-up that
+          # closes the first connection.
+          status=$(curl -sS -o response.json -w '%{http_code} %{time_total}s' \
+            --max-time 90 --retry 2 --retry-delay 10 --retry-connrefused "$URL")
+          echo "GET $URL -> $status"
+          cat response.json
+          echo
+          test "${status%% *}" = "200"
