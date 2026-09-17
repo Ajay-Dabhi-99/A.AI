@@ -23,6 +23,18 @@ export type AuthUser = {
   createdAt: string;
 };
 
+/** GET and PATCH /api/me/instructions (MODEL-069). */
+export type PersonalInstructions = {
+  /** What A.ai should know about the user; null when empty. */
+  about: string | null;
+  /** How A.ai should respond; null when empty. */
+  style: string | null;
+  /** When false the saved text is kept but not sent. */
+  enabled: boolean;
+};
+
+export type PersonalInstructionsResponse = { instructions: PersonalInstructions };
+
 /** Daily allowance for the caller, enforced server-side. */
 export type QuotaSummary = {
   limit: number;

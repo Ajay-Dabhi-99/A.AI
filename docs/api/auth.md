@@ -20,6 +20,8 @@ Both are `HttpOnly`, `SameSite=Lax`, `Path=/`, and `Secure` in production.
 | GET    | `/api/me`                       | none                                       | `200 MeResponse`, issues a guest cookie if needed | `429`                                                      |
 | PATCH  | `/api/me/profile`               | `{ firstName, lastName, phone }`           | `200 { user }`                                    | `400 VALIDATION_ERROR`, `401 AUTH_REQUIRED`, `429`         |
 | PATCH  | `/api/me/interests`             | `{ interests }`                            | `200 { user }`                                    | `400 VALIDATION_ERROR`, `401 AUTH_REQUIRED`, `429`         |
+| GET    | `/api/me/instructions`          | none                                       | `200 { instructions }`                            | `401 AUTH_REQUIRED`                                        |
+| PATCH  | `/api/me/instructions`          | `{ about, style, enabled }`                | `200 { instructions }`                            | `400 VALIDATION_ERROR`, `401 AUTH_REQUIRED`, `429`         |
 | POST   | `/api/auth/signup`              | `{ firstName, lastName, email, password }` | `202 { status: "accepted" }`                      | `400 VALIDATION_ERROR`, `429`                              |
 | POST   | `/api/auth/verify-email`        | `{ token }`                                | `200 { user }` + session cookie                   | `400 TOKEN_INVALID`, `429`                                 |
 | POST   | `/api/auth/resend-verification` | `{ email }`                                | `202 { status: "accepted" }`                      | `400`, `429`                                               |
@@ -58,6 +60,26 @@ A guest gets `"identity": { "kind": "guest", "expiresAt": "…" }`, the guest qu
 `limits.compareMaxModels` (Phase 4) is how many models one [comparison](comparison.md) may run: `GUEST_COMPARE_MAX_MODELS` (default 2) or `USER_COMPARE_MAX_MODELS` (default 4). The API enforces it; the web app uses it to lock the model picker.
 
 `role` is `user` or `admin` (Phase 3). It only decides which controls the web app shows; admin routes check the role on the server. See [making the first admin](models.md#making-the-first-admin).
+
+## Personal instructions
+
+`GET` and `PATCH /api/me/instructions` read and replace the signed-in account's personal instructions (MODEL-069):
+
+```json
+{
+  "instructions": {
+    "about": "I am a school teacher in Gujarat.",
+    "style": "Reply in Hindi, in short sentences.",
+    "enabled": true
+  }
+}
+```
+
+- `about` ("What should A.ai know about you?") and `style` ("How should A.ai respond?"): up to 1,500 characters each after trimming; blank or `null` clears the field. `enabled` is required: `false` keeps the text but stops sending it. All three fields are sent every time; unknown fields are `400`.
+- A new account starts with `{ "about": null, "style": null, "enabled": true }`.
+- While enabled and not empty, every signed-in `POST /api/chat` (new message, retry, regenerate, edit) appends them to the system prompt after A.ai's own rules, marked as the user's preferences that apply unless they conflict with those rules (`withInstructions` in `apps/api/src/modules/users/instructions.service.ts`). They count towards the context budget like the rest of the system prompt. Guests, comparisons and follow-up suggestions do not use them.
+- The web app edits them on the profile page, and the chat footer says "Personal instructions on" with a link while they apply.
+- Verified 2026-09-17 with Groq: with "Always reply only in Hindi, in one short sentence." the model answered "What is photosynthesis?" in one Hindi sentence.
 
 ## Topics
 

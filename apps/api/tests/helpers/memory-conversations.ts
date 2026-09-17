@@ -103,6 +103,40 @@ export function createMemoryConversations(): MemoryConversations {
 
     touch: async (id, at) => touch(id, at),
 
+    rewindTo: async (conversationId, messageId, content, at = now()) => {
+      const target = data.messages.find(
+        (message) => message.id === messageId && message.conversationId === conversationId,
+      );
+      if (!target) throw new Error(`no message ${messageId}`);
+      if (content !== undefined) target.content = content;
+      const ids = data.messages
+        .filter(
+          (message) =>
+            message.conversationId === conversationId &&
+            message.id !== target.id &&
+            message.createdAt >= target.createdAt,
+        )
+        .map((message) => message.id);
+      data.messages.splice(
+        0,
+        data.messages.length,
+        ...data.messages.filter((message) => !ids.includes(message.id)),
+      );
+      for (const run of data.runs) {
+        if (run.messageId !== null && ids.includes(run.messageId)) run.messageId = null;
+      }
+      const conversation = data.conversations.find((candidate) => candidate.id === conversationId);
+      if (conversation?.summaryUpToMessageId && ids.includes(conversation.summaryUpToMessageId)) {
+        Object.assign(conversation, {
+          summary: null,
+          summaryUpToMessageId: null,
+          summaryUpdatedAt: null,
+        });
+      }
+      touch(conversationId, at);
+      return ids;
+    },
+
     addUserMessage: async (conversationId, content) => {
       const at = now();
       const message = {

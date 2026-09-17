@@ -1,6 +1,8 @@
 import type {
   ChatStreamEvent,
   ChatSuggestionsResponse,
+  ConversationShareResponse,
+  SharedConversation,
   ConversationDetail,
   ConversationListResponse,
   GuestConversationResponse,
@@ -9,6 +11,8 @@ import type {
 } from '@a-ai/shared-types';
 import {
   chatSuggestionsResponseSchema,
+  conversationShareResponseSchema,
+  sharedConversationSchema,
   conversationDetailSchema,
   conversationListResponseSchema,
   guestConversationResponseSchema,
@@ -25,6 +29,39 @@ const withSignal = (signal?: AbortSignal) => (signal ? { signal } : {});
 
 export const fetchModels = (signal?: AbortSignal): Promise<ModelsResponse> =>
   apiRequest('/api/models', { schema: modelsResponseSchema, ...withSignal(signal) });
+
+const shareUrl = (conversationId: string) =>
+  `/api/conversations/${encodeURIComponent(conversationId)}/share`;
+
+/** A chat's public link, or null when it is not shared (MODEL-070). */
+export const fetchShare = (
+  conversationId: string,
+  signal?: AbortSignal,
+): Promise<ConversationShareResponse> =>
+  apiRequest(shareUrl(conversationId), {
+    schema: conversationShareResponseSchema,
+    ...withSignal(signal),
+  });
+
+/** Creates the link, or updates its snapshot to the chat as it is now. */
+export const createShare = (conversationId: string): Promise<ConversationShareResponse> =>
+  apiRequest(shareUrl(conversationId), {
+    method: 'POST',
+    schema: conversationShareResponseSchema,
+  });
+
+export const deleteShare = (conversationId: string): Promise<void> =>
+  apiRequest(shareUrl(conversationId), { method: 'DELETE' });
+
+/** Public: a shared chat by its token. */
+export const fetchSharedConversation = (
+  token: string,
+  signal?: AbortSignal,
+): Promise<SharedConversation> =>
+  apiRequest(`/api/shared/${encodeURIComponent(token)}`, {
+    schema: sharedConversationSchema,
+    ...withSignal(signal),
+  });
 
 /** Follow-up questions for an answer (MODEL-067); an empty list when none could be made. */
 export const fetchChatSuggestions = (

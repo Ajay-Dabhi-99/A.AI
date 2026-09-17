@@ -5,6 +5,8 @@ import type {
   ChatStreamEventMap,
   ChatStreamEventName,
   ChatSuggestionsResponse,
+  ConversationShareResponse,
+  SharedConversation,
   ConversationDetail,
   ConversationListResponse,
   GuestConversationResponse,
@@ -19,8 +21,11 @@ import { errorCodeSchema } from './errors.js';
 export const CHAT_MESSAGE_MAX_LENGTH = 16_000;
 
 /**
- * POST /api/chat. Send a new `message`, or `retry: true` to answer the last
- * unanswered user message again (after a failure or stop) without repeating it.
+ * POST /api/chat. Send a new `message`; or `retry: true` to answer the last
+ * unanswered user message again (after a failure or stop) without repeating it;
+ * or `regenerate: true` to replace the latest answer with a new one; or
+ * `edit: true` with `message` to replace the latest question and answer it
+ * again (MODEL-068).
  */
 export const chatRequestSchema = z
   .object({
@@ -34,6 +39,8 @@ export const chatRequestSchema = z
       .max(CHAT_MESSAGE_MAX_LENGTH, `Messages can be at most ${CHAT_MESSAGE_MAX_LENGTH} characters`)
       .optional(),
     retry: z.boolean().optional(),
+    regenerate: z.boolean().optional(),
+    edit: z.boolean().optional(),
     /** Uploaded images to send with a new message (Phase 8). */
     attachmentIds: z
       .array(z.uuid('Unknown attachment'))
@@ -41,14 +48,18 @@ export const chatRequestSchema = z
       .refine((ids) => new Set(ids).size === ids.length, 'Attach each image only once')
       .optional(),
   })
-  .refine((body) => (body.retry === true) !== (body.message !== undefined), {
-    path: ['message'],
-    message: 'Send a message, or retry the previous one',
-  })
-  .refine((body) => !body.attachmentIds?.length || body.message !== undefined, {
-    path: ['attachmentIds'],
-    message: 'Images can only be sent with a new message',
-  });
+  .refine(
+    (body) => [body.retry, body.regenerate, body.edit].filter((flag) => flag === true).length <= 1,
+    { path: ['retry'], message: 'Choose one of retry, regenerate or edit' },
+  )
+  .refine(
+    (body) => (body.retry === true || body.regenerate === true) !== (body.message !== undefined),
+    { path: ['message'], message: 'Send a message, or retry the previous one' },
+  )
+  .refine(
+    (body) => !body.attachmentIds?.length || (body.message !== undefined && body.edit !== true),
+    { path: ['attachmentIds'], message: 'Images can only be sent with a new message' },
+  );
 
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
 
@@ -134,6 +145,33 @@ export const conversationDetailSchema = conversationSummarySchema.extend({
   // Defaults to none so the web app still reads an API from before MODEL-065.
   mediaJobs: z.array(mediaJobSchema).default([]),
 }) satisfies z.ZodType<ConversationDetail>;
+
+export const conversationShareResponseSchema = z.object({
+  share: z
+    .object({
+      token: z.string(),
+      messageCount: z.number().int().nonnegative(),
+      createdAt: z.string(),
+      updatedAt: z.string(),
+    })
+    .nullable(),
+}) satisfies z.ZodType<ConversationShareResponse>;
+
+export const sharedConversationSchema = z.object({
+  title: z.string(),
+  messages: z.array(
+    z.object({
+      role: z.enum(['user', 'assistant']),
+      content: z.string(),
+      model: z.string().nullable(),
+    }),
+  ),
+  sharedAt: z.string(),
+  truncated: z.boolean(),
+}) satisfies z.ZodType<SharedConversation>;
+
+/** Share tokens: 32 random bytes, base64url (43 characters). */
+export const shareTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{32,64}$/);
 
 export const guestConversationResponseSchema = z.object({
   messages: z.array(chatMessageSchema),

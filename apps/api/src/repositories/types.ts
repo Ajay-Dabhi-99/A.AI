@@ -14,6 +14,9 @@ export type UserRecord = {
   phone: string | null;
   interests: string[];
   interestsSetAt: Date | null;
+  instructionsAbout: string | null;
+  instructionsStyle: string | null;
+  instructionsEnabled: boolean;
   role: UserRoleValue;
   emailVerifiedAt: Date | null;
   createdAt: Date;
@@ -74,6 +77,11 @@ export interface UserRepository {
   updateProfile(id: string, profile: ProfileFields): Promise<UserRecord>;
   /** Replaces the user's topics and records when they answered. */
   updateInterests(id: string, interests: string[], at: Date): Promise<UserRecord>;
+  /** Replaces the user's personal instructions (MODEL-069). */
+  updateInstructions(
+    id: string,
+    instructions: { about: string | null; style: string | null; enabled: boolean },
+  ): Promise<UserRecord>;
   /** Returns the updated user, or null when no account has this email. */
   setRoleByEmail(email: string, role: UserRoleValue): Promise<UserRecord | null>;
   /** Sets emailVerifiedAt if it is not set yet; returns the current user either way. */

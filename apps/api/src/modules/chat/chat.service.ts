@@ -40,6 +40,7 @@ import type {
 } from '../../services/context.service.js';
 import type { QuotaService, QuotaSubject } from '../../services/quota.service.js';
 import type { Clock } from '../../shared/clock.js';
+import { withInstructions, type InstructionsService } from '../users/instructions.service.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { AttachmentService } from '../attachments/attachment.service.js';
 import type { GuestSession } from '../guest/guest.service.js';
@@ -74,9 +75,11 @@ export type ChatServiceDeps = {
   health: ProviderHealthService;
   quota: QuotaService;
   /** Images sent with a message (Phase 8, ADR-015). */
-  attachments: Pick<AttachmentService, 'prepareForMessage' | 'attach'>;
+  attachments: Pick<AttachmentService, 'prepareForMessage' | 'attach' | 'forMessages'>;
   /** Let another healthy model answer when the chosen one fails before any text (ADR-013). */
   fallbackEnabled: boolean;
+  /** A signed-in user's personal instructions (MODEL-069); none when absent. */
+  instructions?: Pick<InstructionsService, 'forChat'>;
   retryPolicy?: Partial<RetryPolicy>;
   clock: Clock;
   logger: FastifyBaseLogger;
@@ -163,10 +166,41 @@ export class ChatService {
       }));
     }
 
+    // Regenerate and edit rewind the chat to its latest question (MODEL-068).
+    const lastQuestionIndex = history.findLastIndex((message) => message.role === 'user');
+    const lastQuestion = history[lastQuestionIndex];
+    let rewind: { messageId: string; removed: string[]; content?: string } | null = null;
     if (input.retry) {
       if (history.at(-1)?.role !== 'user') {
         throw new AppError('VALIDATION_ERROR', 'There is no unanswered message to retry.');
       }
+    } else if (input.regenerate || input.edit) {
+      if (!lastQuestion?.id || (input.regenerate && history.at(-1)?.role !== 'assistant')) {
+        throw new AppError(
+          'VALIDATION_ERROR',
+          input.regenerate ? 'There is no answer to regenerate.' : 'There is no message to edit.',
+        );
+      }
+      if (input.edit && caller.kind === 'user') {
+        const sent = await attachments.forMessages([lastQuestion.id]);
+        if ((sent.get(lastQuestion.id)?.length ?? 0) > 0) {
+          throw new AppError('VALIDATION_ERROR', 'Messages with images cannot be edited.');
+        }
+      }
+      const removed = history
+        .slice(lastQuestionIndex + 1)
+        .flatMap((message) => (message.id ? [message.id] : []));
+      rewind = {
+        messageId: lastQuestion.id,
+        removed,
+        ...(input.edit ? { content: input.message as string } : {}),
+      };
+      history = [
+        ...history.slice(0, lastQuestionIndex),
+        input.edit ? { ...lastQuestion, content: input.message as string } : lastQuestion,
+      ];
+      // A summary that covered a removed message no longer describes the chat.
+      if (summary && removed.includes(summary.upToMessageId)) summary = null;
     } else {
       history = [
         ...history,
@@ -177,13 +211,20 @@ export class ChatService {
         },
       ];
     }
+    const sendsNewMessage = !input.retry && rewind === null;
+
+    // Personal instructions shape every answer for signed-in users (MODEL-069).
+    const systemPrompt =
+      caller.kind === 'user' && this.#deps.instructions
+        ? withInstructions(SYSTEM_PROMPT, await this.#deps.instructions.forChat(caller.userId))
+        : SYSTEM_PROMPT;
 
     const planFor = (candidate: AIModel) => {
       const maxOutputTokens = Math.min(candidate.maxOutputTokens, CHAT_MAX_OUTPUT_TOKENS);
       return context
         .plan({
           model: candidate,
-          systemPrompt: SYSTEM_PROMPT,
+          systemPrompt,
           maxOutputTokens,
           history,
           summary,
@@ -212,7 +253,14 @@ export class ChatService {
     let runId: string;
     try {
       if (caller.kind === 'user') {
-        if (!input.retry) {
+        if (rewind) {
+          await conversations.rewindTo(
+            conversationId as string,
+            rewind.messageId,
+            rewind.content,
+            clock.now(),
+          );
+        } else if (sendsNewMessage) {
           conversationId ??= (
             await conversations.create({
               userId: caller.userId,
@@ -230,7 +278,20 @@ export class ChatService {
           })
         ).id;
       } else {
-        if (!input.retry) {
+        if (rewind) {
+          const { messageId, content, removed } = rewind;
+          const kept = guestMessages.findIndex((message) => message.id === messageId);
+          guestMessages = guestMessages
+            .slice(0, kept + 1)
+            .map((message) =>
+              message.id === messageId && content !== undefined ? { ...message, content } : message,
+            );
+          await guestChats.save(caller.guest, guestMessages);
+          const stored = await context.guestSummary(caller.guest.id);
+          if (stored && removed.includes(stored.upToMessageId)) {
+            await context.clearGuest(caller.guest.id);
+          }
+        } else if (sendsNewMessage) {
           guestMessages = [
             ...guestMessages,
             {

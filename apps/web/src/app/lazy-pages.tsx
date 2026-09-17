@@ -5,6 +5,10 @@ import { loaders } from './page-loaders';
 // (Phase 10 performance). RootLayout shows a spinner while a page's code arrives,
 // and preloads every page once the browser is idle so switching pages does not flash it.
 
+export const SharedChatPage = lazy(() =>
+  loaders.sharedChatPage().then((module) => ({ default: module.SharedChatPage })),
+);
+
 export const ComparePage = lazy(() =>
   loaders.comparePage().then((module) => ({ default: module.ComparePage })),
 );

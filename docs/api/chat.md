@@ -6,16 +6,20 @@ Every request goes through the platform guards: rate limit, origin check on stat
 
 ## Endpoints
 
-| Method | Path                      | Access        | Success                         | Purpose                                                 |
-| ------ | ------------------------- | ------------- | ------------------------------- | ------------------------------------------------------- |
-| GET    | `/api/models`             | Anyone        | `200 ModelsResponse`            | Models whose provider key is configured, plus a default |
-| POST   | `/api/chat`               | Guest or user | `200 text/event-stream`         | Send a message (or retry) and stream the answer         |
-| POST   | `/api/chat/suggestions`   | Guest or user | `200 ChatSuggestionsResponse`   | Up to three follow-up questions for an answer           |
-| GET    | `/api/conversations`      | User          | `200 ConversationListResponse`  | Up to 50 chats: pinned first, then most recently active |
-| GET    | `/api/conversations/:id`  | User (owner)  | `200 ConversationDetail`        | One chat with every message and its run                 |
-| GET    | `/api/guest/conversation` | Guest         | `200 GuestConversationResponse` | The guest's temporary chat                              |
-| DELETE | `/api/guest/conversation` | Guest         | `204`                           | Start a fresh guest chat                                |
-| POST   | `/api/guest/migrate`      | User          | `200 { conversationId }`        | Move the guest chat into the account (idempotent)       |
+| Method | Path                           | Access        | Success                         | Purpose                                                 |
+| ------ | ------------------------------ | ------------- | ------------------------------- | ------------------------------------------------------- |
+| GET    | `/api/models`                  | Anyone        | `200 ModelsResponse`            | Models whose provider key is configured, plus a default |
+| POST   | `/api/chat`                    | Guest or user | `200 text/event-stream`         | Send a message (or retry) and stream the answer         |
+| POST   | `/api/chat/suggestions`        | Guest or user | `200 ChatSuggestionsResponse`   | Up to three follow-up questions for an answer           |
+| GET    | `/api/conversations`           | User          | `200 ConversationListResponse`  | Up to 50 chats: pinned first, then most recently active |
+| GET    | `/api/conversations/:id`       | User (owner)  | `200 ConversationDetail`        | One chat with every message and its run                 |
+| GET    | `/api/conversations/:id/share` | User (owner)  | `200 ConversationShareResponse` | The chat's public link, or `null`                       |
+| POST   | `/api/conversations/:id/share` | User (owner)  | `200 ConversationShareResponse` | Create the link, or refresh its snapshot                |
+| DELETE | `/api/conversations/:id/share` | User (owner)  | `204`                           | Stop sharing                                            |
+| GET    | `/api/shared/:token`           | Anyone        | `200 SharedConversation`        | Read a shared chat                                      |
+| GET    | `/api/guest/conversation`      | Guest         | `200 GuestConversationResponse` | The guest's temporary chat                              |
+| DELETE | `/api/guest/conversation`      | Guest         | `204`                           | Start a fresh guest chat                                |
+| POST   | `/api/guest/migrate`           | User          | `200 { conversationId }`        | Move the guest chat into the account (idempotent)       |
 
 Each chat in `ConversationListResponse` and `ConversationDetail` is a `ConversationSummary`: `id`, `title`, `pinnedAt` (ISO time, or `null` when not pinned), `createdAt`, `updatedAt`. `ConversationDetail` also has `mediaJobs`, the images created in the chat ([generation](generation.md#images-inside-a-chat-model-065)). Pinned chats are listed first, most recently pinned on top; rename and pin with [`PATCH /api/conversations/:id`](history.md#patch-apiconversationsid) (MODEL-062).
 
@@ -34,28 +38,54 @@ Each chat in `ConversationListResponse` and `ConversationDetail` is a `Conversat
 { "provider": "groq", "model": "openai/gpt-oss-20b", "retry": true, "conversationId": "…" }
 ```
 
+```json
+{ "provider": "groq", "model": "openai/gpt-oss-20b", "regenerate": true, "conversationId": "…" }
+```
+
+```json
+{
+  "provider": "groq",
+  "model": "openai/gpt-oss-20b",
+  "edit": true,
+  "message": "Explain RAG in two sentences",
+  "conversationId": "…"
+}
+```
+
 | Field               | Rule                                                                                                                                                        |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `provider`, `model` | Must match an entry in `GET /api/models`                                                                                                                    |
-| `message`           | 1–16,000 characters after trimming; exactly one of `message` or `retry`                                                                                     |
+| `message`           | 1–16,000 characters after trimming; required unless `retry` or `regenerate` is set                                                                          |
 | `retry`             | Answers the last unanswered user message again without repeating it                                                                                         |
+| `regenerate`        | MODEL-068. Deletes the latest answer and answers the latest question again. The chat must end with an answer                                                |
+| `edit`              | MODEL-068. With `message`: replaces the latest question's text, deletes everything after it, and answers again. Not for questions sent with images          |
 | `conversationId`    | Users only; omit to start a new conversation. Ignored for guests.                                                                                           |
 | `attachmentIds`     | Phase 8. Users only; up to 4 distinct uploaded images, with `message` only (not `retry`). The model must support vision. See [attachments](attachments.md). |
 
 ### Rejected before streaming (JSON errors)
 
-| Status | Code                | When                                                                                      |
-| ------ | ------------------- | ----------------------------------------------------------------------------------------- |
-| 400    | `VALIDATION_ERROR`  | Bad body, or retry with nothing to retry                                                  |
-| 400    | `VALIDATION_ERROR`  | Images for a model without vision, or an image that is not yours, missing or already sent |
-| 401    | `AUTH_REQUIRED`     | A guest sent `attachmentIds`                                                              |
-| 400    | `MODEL_UNAVAILABLE` | Model not offered by this instance                                                        |
-| 404    | `NOT_FOUND`         | Conversation does not exist or is not yours                                               |
-| 422    | `CONTEXT_TOO_LARGE` | The newest message alone cannot fit the model                                             |
-| 429    | `QUOTA_EXCEEDED`    | Daily allowance used up (`Retry-After` until midnight UTC)                                |
-| 429    | `RATE_LIMITED`      | Too many requests                                                                         |
+| Status | Code                | When                                                                                           |
+| ------ | ------------------- | ---------------------------------------------------------------------------------------------- |
+| 400    | `VALIDATION_ERROR`  | Bad body, or retry with nothing to retry                                                       |
+| 400    | `VALIDATION_ERROR`  | Regenerate with no answer to replace, edit with no question, or edit of a question with images |
+| 400    | `VALIDATION_ERROR`  | Images for a model without vision, or an image that is not yours, missing or already sent      |
+| 401    | `AUTH_REQUIRED`     | A guest sent `attachmentIds`                                                                   |
+| 400    | `MODEL_UNAVAILABLE` | Model not offered by this instance                                                             |
+| 404    | `NOT_FOUND`         | Conversation does not exist or is not yours                                                    |
+| 422    | `CONTEXT_TOO_LARGE` | The newest message alone cannot fit the model                                                  |
+| 429    | `QUOTA_EXCEEDED`    | Daily allowance used up (`Retry-After` until midnight UTC)                                     |
+| 429    | `RATE_LIMITED`      | Too many requests                                                                              |
 
 None of these use up allowance.
+
+Signed-in users' [personal instructions](auth.md#personal-instructions) are added to the system prompt of every request while they are on (MODEL-069).
+
+### Regenerate and edit (MODEL-068)
+
+- At most one of `retry`, `regenerate` and `edit`; `attachmentIds` only with a plain new message.
+- Both act on the latest question only (image requests are not questions). The chat is rewound after the request is accepted (allowance used) and before the model is called: deleted answers keep their runs in the history with no message, and a summary that covered a deleted message is dropped. Regenerate or edit counts as one message.
+- Guests: the same, on the temporary chat.
+- If the new answer fails, the chat ends with the question, so `retry` answers it.
 
 ### Stream
 
@@ -140,6 +170,41 @@ Follow-up questions for the answer just shown (MODEL-067). The web app calls it 
 - Best effort: when models fail or reply with nothing usable the answer is `200 { "suggestions": [] }`. Not charged to the daily message allowance; limited to 120 an hour per user, 30 per guest session and 60 per guest IP (`429 RATE_LIMITED`).
 - `CHAT_SUGGESTIONS_ENABLED=false` turns it off (always an empty list, no model call).
 - Checked 2026-09-17 against Groq: three relevant questions in about 2 s.
+
+## Share links (MODEL-070)
+
+A signed-in user can publish a read-only **snapshot** of a saved chat. The web app shows it at `/share/:token`.
+
+```json
+{
+  "share": {
+    "token": "…43 base64url characters…",
+    "messageCount": 6,
+    "createdAt": "2026-09-17T10:00:00.000Z",
+    "updatedAt": "2026-09-17T10:00:00.000Z"
+  }
+}
+```
+
+- `POST` takes the chat as it is now: text of every message (at most the newest 200), and the display name of the model behind each answer. Images, generated images and personal instructions are never included. The first `POST` creates a random 32-byte token; later ones refresh the snapshot and keep the same link. A chat with no messages is `400 VALIDATION_ERROR`.
+- Messages sent after the snapshot stay private until the owner updates the link. Editing, regenerating or renaming the chat does not change a snapshot either.
+- `DELETE` stops sharing (the link returns `404` at once); a chat that is not shared is `404`. Deleting the chat or the account also removes the share.
+- `GET /api/shared/:token` needs no account. It answers `no-store` and `x-robots-tag: noindex, nofollow`; the web page also sets `<meta name="robots" content="noindex, nofollow">`. A malformed or unknown token is `404 NOT_FOUND` ("This shared chat does not exist or was removed.").
+
+```json
+{
+  "title": "Weekend trip to Jaipur",
+  "messages": [
+    { "role": "user", "content": "Plan a two-day trip…", "model": null },
+    { "role": "assistant", "content": "**Day 1** …", "model": "GPT-OSS 120B" }
+  ],
+  "sharedAt": "2026-09-17T10:00:00.000Z",
+  "truncated": false
+}
+```
+
+- Owner routes: another user's or an unknown chat is `404`; guests are `401`.
+- Storage: table `conversation_shares` (migration `20260917220000_conversation_shares`, Row Level Security enabled; the API uses its own database connection and no Data API policy exposes it).
 
 ## Guests
 

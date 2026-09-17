@@ -6,6 +6,7 @@ import {
   createPrismaConversationRepository,
   type ConversationRepository,
 } from '../../src/repositories/conversation.repository.js';
+import { createPrismaShareRepository } from '../../src/repositories/share.repository.js';
 import { createPrismaRepositories } from '../../src/repositories/prisma.repositories.js';
 import { testEnv } from '../helpers/test-app.js';
 
@@ -91,6 +92,84 @@ describe('Prisma conversation repository', () => {
       outputTokens: 3,
     });
     expect(await conversations.findForUser(conversation.id, randomUUID())).toBeNull();
+  });
+
+  it('rewinds to a question, replacing its text and unlinking later answers', async () => {
+    const userId = await newUser();
+    const conversation = await conversations.create({ userId, title: 'Rewind' });
+    const question = await conversations.addUserMessage(conversation.id, 'first question');
+    const run = await conversations.startRun({
+      conversationId: conversation.id,
+      provider: 'groq',
+      model: 'openai/gpt-oss-20b',
+    });
+    const { message } = await conversations.completeRun(run.id, {
+      conversationId: conversation.id,
+      status: 'COMPLETED',
+      messageContent: 'first answer',
+      ttftMs: null,
+      latencyMs: 500,
+      inputTokens: null,
+      outputTokens: null,
+      usageSource: null,
+      errorCode: null,
+      estimatedCostUsd: null,
+      completedAt: new Date(),
+    });
+    await prisma.conversation.update({
+      where: { id: conversation.id },
+      data: { summary: 'old', summaryUpToMessageId: message!.id },
+    });
+
+    const removed = await conversations.rewindTo(conversation.id, question.id, 'edited question');
+
+    expect(removed).toEqual([message!.id]);
+    const messages = await conversations.listMessages(conversation.id);
+    expect(messages.map((item) => [item.role, item.content])).toEqual([
+      ['USER', 'edited question'],
+    ]);
+    expect(await prisma.modelRun.findUniqueOrThrow({ where: { id: run.id } })).toMatchObject({
+      messageId: null,
+    });
+    expect(await conversations.findForUser(conversation.id, userId)).toMatchObject({
+      summary: null,
+      summaryUpToMessageId: null,
+    });
+    // Nothing after the question: a no-op apart from the text.
+    expect(await conversations.rewindTo(conversation.id, question.id)).toEqual([]);
+  });
+
+  it('keeps a share per chat, with RLS, and removes it with the chat', async () => {
+    const [rls] = await prisma.$queryRaw<{ relrowsecurity: boolean }[]>`
+      SELECT relrowsecurity FROM pg_class WHERE relname = 'conversation_shares' AND relkind = 'r'`;
+    expect(rls?.relrowsecurity).toBe(true);
+
+    const shares = createPrismaShareRepository(prisma);
+    const userId = await newUser();
+    const conversation = await conversations.create({ userId, title: 'Shared' });
+    const at = new Date('2026-09-17T10:00:00.000Z');
+    const messages = [{ role: 'user' as const, content: 'Hi', model: null }];
+    const first = await shares.save(
+      { conversationId: conversation.id, userId, title: 'Shared', messages },
+      'a'.repeat(43),
+      at,
+    );
+    const again = await shares.save(
+      {
+        conversationId: conversation.id,
+        userId,
+        title: 'Renamed',
+        messages: [...messages, { role: 'assistant', content: 'Hello', model: 'M' }],
+      },
+      'b'.repeat(43),
+      new Date('2026-09-17T11:00:00.000Z'),
+    );
+    expect(again).toMatchObject({ id: first.id, token: 'a'.repeat(43), title: 'Renamed' });
+    expect(again.messages).toHaveLength(2);
+    expect((await shares.findByToken('a'.repeat(43)))?.conversationId).toBe(conversation.id);
+
+    await prisma.conversation.delete({ where: { id: conversation.id } });
+    expect(await shares.findByToken('a'.repeat(43))).toBeNull();
   });
 
   it('imports a guest chat idempotently, even when two imports race', async () => {

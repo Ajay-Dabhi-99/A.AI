@@ -20,7 +20,11 @@ export function InterestsDialog() {
   const user = currentUser(me.data);
   const [selection, setSelection] = useState<string[]>([]);
   const save = useUpdateInterests();
-  const open = user !== null && user.interestsSetAt === null && !QUIET_PATHS.includes(pathname);
+  const open =
+    user !== null &&
+    user.interestsSetAt === null &&
+    !QUIET_PATHS.includes(pathname) &&
+    !pathname.startsWith('/share/');
 
   const submit = (interests: string[]) => save.mutate({ interests });
 

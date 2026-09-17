@@ -48,6 +48,9 @@ export function createMemoryRepositories(): MemoryRepositories {
           phone: null,
           interests: [],
           interestsSetAt: null,
+          instructionsAbout: null,
+          instructionsStyle: null,
+          instructionsEnabled: true,
           role: 'USER',
           emailVerifiedAt: null,
           createdAt: now,
@@ -61,6 +64,17 @@ export function createMemoryRepositories(): MemoryRepositories {
         if (!user) throw new Error(`no user ${id}`);
         Object.assign(user, profile, { updatedAt: new Date() });
         return copy(user);
+      },
+      updateInstructions: async (id, { about, style, enabled }) => {
+        const user = data.users.find((candidate) => candidate.id === id);
+        if (!user) throw new Error(`no user ${id}`);
+        Object.assign(user, {
+          instructionsAbout: about,
+          instructionsStyle: style,
+          instructionsEnabled: enabled,
+          updatedAt: new Date(),
+        });
+        return { ...copy(user), interests: [...user.interests] };
       },
       updateInterests: async (id, interests, at) => {
         const user = data.users.find((candidate) => candidate.id === id);

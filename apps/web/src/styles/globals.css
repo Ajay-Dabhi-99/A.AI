@@ -738,6 +738,61 @@
   }
 }
 
+/* Copy, regenerate and edit (MODEL-068). */
+@layer components {
+  .message-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    height: 1.625rem;
+    padding: 0 0.375rem;
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+    transition:
+      background-color 0.15s ease,
+      color 0.15s ease;
+  }
+  .message-action:hover {
+    background: var(--surface-muted);
+    color: var(--foreground);
+  }
+  /* A question's actions show on hover or focus; touch screens always show them. */
+  .user-actions {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  li:hover .user-actions,
+  .user-actions:focus-within {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .user-actions {
+      opacity: 1;
+    }
+  }
+  .code-block {
+    position: relative;
+  }
+  .code-block .code-copy {
+    position: absolute;
+    top: 0.375rem;
+    right: 0.375rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    opacity: 0;
+  }
+  .code-block:hover .code-copy,
+  .code-block .code-copy:focus-visible {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .code-block .code-copy {
+      opacity: 1;
+    }
+  }
+}
+
 /* Image creation inside the chat (MODEL-065). */
 @layer components {
   .image-model-chip {

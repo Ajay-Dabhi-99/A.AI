@@ -9,6 +9,7 @@ import {
   Pin,
   PinOff,
   Plus,
+  Share2,
   Search,
   Trash2,
   X,
@@ -29,6 +30,7 @@ import { cn } from '@/lib/utils';
 import { ApiError } from '@/services/api';
 import { fetchConversations } from '@/services/chat';
 import { deleteHistoryItem, updateConversation } from '@/services/history';
+import { ShareDialog } from './share-dialog';
 import { CONVERSATIONS_QUERY_KEY } from './use-chat-session';
 
 type Changes = { title?: string; pinned?: boolean };
@@ -235,6 +237,7 @@ function ChatRow({
 }) {
   const [editing, setEditing] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   // Rename and Delete move focus elsewhere, so the menu must not pull it back to its button.
@@ -318,6 +321,15 @@ function ChatRow({
             {pinned ? <PinOff aria-hidden="true" /> : <Pin aria-hidden="true" />}
             {pinned ? 'Unpin' : 'Pin to top'}
           </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => {
+              keepFocusRef.current = true;
+              setShareOpen(true);
+            }}
+          >
+            <Share2 aria-hidden="true" />
+            Share
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             tone="danger"
@@ -361,6 +373,15 @@ function ChatRow({
           </div>
         </DialogContent>
       </Dialog>
+
+      {shareOpen && (
+        <ShareDialog
+          conversationId={chat.id}
+          title={chat.title}
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+        />
+      )}
     </div>
   );
 }

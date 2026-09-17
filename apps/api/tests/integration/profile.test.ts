@@ -1,4 +1,9 @@
-import { apiErrorBodySchema, authUserResponseSchema, meResponseSchema } from '@a-ai/validation';
+import {
+  apiErrorBodySchema,
+  authUserResponseSchema,
+  meResponseSchema,
+  personalInstructionsResponseSchema,
+} from '@a-ai/validation';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
@@ -49,6 +54,50 @@ async function signedIn(): Promise<{ app: FastifyInstance; cookies: Record<strin
   if (!session) throw new Error('verification did not set a session cookie');
   return { app, cookies: { [SESSION]: session } };
 }
+
+describe('personal instructions (MODEL-069)', () => {
+  const save = (app: FastifyInstance, payload: object, cookies?: Record<string, string>) =>
+    app.inject({
+      method: 'PATCH',
+      url: '/api/me/instructions',
+      headers: { origin: WEB_ORIGIN },
+      payload,
+      ...(cookies ? { cookies } : {}),
+    });
+
+  it('starts empty and on, then saves, clears and turns off', async () => {
+    const { app, cookies } = await signedIn();
+    const initial = await app.inject({ url: '/api/me/instructions', cookies });
+    expect(personalInstructionsResponseSchema.parse(initial.json())).toEqual({
+      instructions: { about: null, style: null, enabled: true },
+    });
+
+    const saved = await save(
+      app,
+      { about: ' I teach maths. ', style: 'Be brief.', enabled: true },
+      cookies,
+    );
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json()).toEqual({
+      instructions: { about: 'I teach maths.', style: 'Be brief.', enabled: true },
+    });
+
+    await save(app, { about: '', style: 'Be brief.', enabled: false }, cookies);
+    expect((await app.inject({ url: '/api/me/instructions', cookies })).json()).toEqual({
+      instructions: { about: null, style: 'Be brief.', enabled: false },
+    });
+  });
+
+  it('rejects bad input and guests', async () => {
+    const { app, cookies } = await signedIn();
+    const long = await save(app, { about: 'x'.repeat(1_501), style: null, enabled: true }, cookies);
+    expect(long.statusCode).toBe(400);
+    expect(apiErrorBodySchema.parse(long.json()).error.code).toBe('VALIDATION_ERROR');
+    expect((await save(app, { about: null }, cookies)).statusCode).toBe(400);
+    expect((await save(app, { about: null, style: null, enabled: true })).statusCode).toBe(401);
+    expect((await app.inject({ url: '/api/me/instructions' })).statusCode).toBe(401);
+  });
+});
 
 describe('PATCH /api/me/interests', () => {
   const patchInterests = (

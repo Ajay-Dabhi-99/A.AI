@@ -1,6 +1,7 @@
-import { memo } from 'react';
+import { isValidElement, memo, type ComponentProps, type ReactNode } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { CopyButton } from './copy-button';
 
 type HastNode = {
   type: string;
@@ -43,8 +44,28 @@ function rehypeStreamWords() {
 
 const REMARK_PLUGINS = [remarkGfm];
 const STREAMING_PLUGINS = [rehypeStreamWords];
-// Defined once so links are not remounted on every streamed frame.
+/** The plain text inside rendered Markdown children. */
+function textOf(node: ReactNode): string {
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(textOf).join('');
+  if (isValidElement<{ children?: ReactNode }>(node)) return textOf(node.props.children);
+  return '';
+}
+
+/** A code block with its own copy button (MODEL-068). */
+function CodeBlock({ node: _node, ...props }: ComponentProps<'pre'> & { node?: unknown }) {
+  const code = textOf(props.children);
+  return (
+    <div className="code-block">
+      <pre {...props} />
+      <CopyButton text={code} label="Copy code" showLabel={false} className="code-copy" />
+    </div>
+  );
+}
+
+// Defined once so links and code blocks are not remounted on every streamed frame.
 const COMPONENTS: Components = {
+  pre: CodeBlock,
   a: ({ node: _node, ...props }) => (
     <a {...props} target="_blank" rel="noopener noreferrer nofollow" />
   ),

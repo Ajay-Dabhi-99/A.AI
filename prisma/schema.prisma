@@ -27,6 +27,10 @@ model User {
   interests       String[]       @default([]) @db.VarChar(40)
   /// When the topics were last saved (also when skipped); null until the user answers.
   interestsSetAt  DateTime?      @db.Timestamptz(3)
+  /// Personal instructions sent with every chat while enabled (MODEL-069).
+  instructionsAbout   String?    @db.VarChar(1500)
+  instructionsStyle   String?    @db.VarChar(1500)
+  instructionsEnabled Boolean    @default(true)
   role            UserRole       @default(USER)
   emailVerifiedAt DateTime?      @db.Timestamptz(3)
   createdAt       DateTime       @default(now()) @db.Timestamptz(3)
@@ -37,6 +41,7 @@ model User {
   comparisons     Comparison[]
   attachments     Attachment[]
   generationJobs  GenerationJob[]
+  shares          ConversationShare[]
 
   @@map("users")
 }
@@ -103,9 +108,31 @@ model Conversation {
   runs              ModelRun[]
   /// Images created from this chat (MODEL-065).
   generationJobs    GenerationJob[]
+  /// Public read-only snapshot, when the owner shared the chat (MODEL-070).
+  share             ConversationShare?
 
   @@index([userId, updatedAt(sort: Desc)])
   @@map("conversations")
+}
+
+/// A public, read-only snapshot of a chat (MODEL-070). Anyone with the token can
+/// read `messages`; later messages stay private until the owner updates the share.
+model ConversationShare {
+  id             String       @id @default(uuid()) @db.Uuid
+  /// 32 random bytes, base64url: the only thing a reader needs.
+  token          String       @unique @db.VarChar(64)
+  conversationId String       @unique @db.Uuid
+  userId         String       @db.Uuid
+  title          String       @db.VarChar(120)
+  /// Text only: [{ role, content, model }]. Images and instructions are never included.
+  messages       Json
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(3)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("conversation_shares")
 }
 
 enum MessageRole {
