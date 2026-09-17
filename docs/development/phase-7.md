@@ -65,7 +65,7 @@ Run on 2026-09-15, Windows 11, Node 22.16.0, pnpm 10.34.5.
 
 ## Deferred, by design
 
-- Searching message bodies (needs a full-text index): later, if users ask.
+- ~~Searching message bodies~~: done in MODEL-071 (substring search, no index yet); a full-text or trigram index is still deferred.
 - `usage_events` rollups: when aggregate queries become slow (ADR-014 §4).
 - A trash / undo for deletions.
 - Showing conversation summaries (Phase 5) in history.

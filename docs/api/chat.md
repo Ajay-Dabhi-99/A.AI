@@ -6,20 +6,21 @@ Every request goes through the platform guards: rate limit, origin check on stat
 
 ## Endpoints
 
-| Method | Path                           | Access        | Success                         | Purpose                                                 |
-| ------ | ------------------------------ | ------------- | ------------------------------- | ------------------------------------------------------- |
-| GET    | `/api/models`                  | Anyone        | `200 ModelsResponse`            | Models whose provider key is configured, plus a default |
-| POST   | `/api/chat`                    | Guest or user | `200 text/event-stream`         | Send a message (or retry) and stream the answer         |
-| POST   | `/api/chat/suggestions`        | Guest or user | `200 ChatSuggestionsResponse`   | Up to three follow-up questions for an answer           |
-| GET    | `/api/conversations`           | User          | `200 ConversationListResponse`  | Up to 50 chats: pinned first, then most recently active |
-| GET    | `/api/conversations/:id`       | User (owner)  | `200 ConversationDetail`        | One chat with every message and its run                 |
-| GET    | `/api/conversations/:id/share` | User (owner)  | `200 ConversationShareResponse` | The chat's public link, or `null`                       |
-| POST   | `/api/conversations/:id/share` | User (owner)  | `200 ConversationShareResponse` | Create the link, or refresh its snapshot                |
-| DELETE | `/api/conversations/:id/share` | User (owner)  | `204`                           | Stop sharing                                            |
-| GET    | `/api/shared/:token`           | Anyone        | `200 SharedConversation`        | Read a shared chat                                      |
-| GET    | `/api/guest/conversation`      | Guest         | `200 GuestConversationResponse` | The guest's temporary chat                              |
-| DELETE | `/api/guest/conversation`      | Guest         | `204`                           | Start a fresh guest chat                                |
-| POST   | `/api/guest/migrate`           | User          | `200 { conversationId }`        | Move the guest chat into the account (idempotent)       |
+| Method | Path                           | Access        | Success                          | Purpose                                                 |
+| ------ | ------------------------------ | ------------- | -------------------------------- | ------------------------------------------------------- |
+| GET    | `/api/models`                  | Anyone        | `200 ModelsResponse`             | Models whose provider key is configured, plus a default |
+| POST   | `/api/chat`                    | Guest or user | `200 text/event-stream`          | Send a message (or retry) and stream the answer         |
+| POST   | `/api/chat/suggestions`        | Guest or user | `200 ChatSuggestionsResponse`    | Up to three follow-up questions for an answer           |
+| GET    | `/api/conversations`           | User          | `200 ConversationListResponse`   | Up to 50 chats: pinned first, then most recently active |
+| GET    | `/api/conversations/search?q=` | User          | `200 ConversationSearchResponse` | Chats whose title or messages contain the text          |
+| GET    | `/api/conversations/:id`       | User (owner)  | `200 ConversationDetail`         | One chat with every message and its run                 |
+| GET    | `/api/conversations/:id/share` | User (owner)  | `200 ConversationShareResponse`  | The chat's public link, or `null`                       |
+| POST   | `/api/conversations/:id/share` | User (owner)  | `200 ConversationShareResponse`  | Create the link, or refresh its snapshot                |
+| DELETE | `/api/conversations/:id/share` | User (owner)  | `204`                            | Stop sharing                                            |
+| GET    | `/api/shared/:token`           | Anyone        | `200 SharedConversation`         | Read a shared chat                                      |
+| GET    | `/api/guest/conversation`      | Guest         | `200 GuestConversationResponse`  | The guest's temporary chat                              |
+| DELETE | `/api/guest/conversation`      | Guest         | `204`                            | Start a fresh guest chat                                |
+| POST   | `/api/guest/migrate`           | User          | `200 { conversationId }`         | Move the guest chat into the account (idempotent)       |
 
 Each chat in `ConversationListResponse` and `ConversationDetail` is a `ConversationSummary`: `id`, `title`, `pinnedAt` (ISO time, or `null` when not pinned), `createdAt`, `updatedAt`. `ConversationDetail` also has `mediaJobs`, the images created in the chat ([generation](generation.md#images-inside-a-chat-model-065)). Pinned chats are listed first, most recently pinned on top; rename and pin with [`PATCH /api/conversations/:id`](history.md#patch-apiconversationsid) (MODEL-062).
 
@@ -170,6 +171,33 @@ Follow-up questions for the answer just shown (MODEL-067). The web app calls it 
 - Best effort: when models fail or reply with nothing usable the answer is `200 { "suggestions": [] }`. Not charged to the daily message allowance; limited to 120 an hour per user, 30 per guest session and 60 per guest IP (`429 RATE_LIMITED`).
 - `CHAT_SUGGESTIONS_ENABLED=false` turns it off (always an empty list, no model call).
 - Checked 2026-09-17 against Groq: three relevant questions in about 2 s.
+
+## `GET /api/conversations/search` (MODEL-071)
+
+Finds the signed-in user's chats whose title or any message contains `q`.
+
+- `q`: 2–120 characters after trimming (inner spaces collapsed); otherwise `400 VALIDATION_ERROR`. Guests get `401`.
+- Case-insensitive substring match; `%`, `_` and `\` are matched literally. Only the caller's chats are searched.
+- At most 20 results, pinned first, then most recently active. Each is a `ConversationSummary` plus `matchedIn` (`title` when the title matches, otherwise `message`) and `snippet`: up to about 140 characters around the match in the newest matching message, on one line with `…` where it was cut, or `null` when only the title matched.
+- `no-store`. There is no full-text index yet: the query is limited to one user's chats (indexed by user and by conversation); a trigram index is the upgrade path if chats grow large.
+
+```json
+{
+  "results": [
+    {
+      "id": "…",
+      "title": "Monthly budget",
+      "pinnedAt": null,
+      "createdAt": "…",
+      "updatedAt": "…",
+      "matchedIn": "message",
+      "snippet": "…is it fine if my rent is 50% of my salary in Pune, or should I…"
+    }
+  ]
+}
+```
+
+The web sidebar calls it 250 ms after typing stops (2 or more characters), shows the results with the matching text highlighted, and returns to the normal list when the box is cleared.
 
 ## Share links (MODEL-070)
 

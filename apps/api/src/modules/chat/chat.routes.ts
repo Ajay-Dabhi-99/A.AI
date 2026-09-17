@@ -1,11 +1,16 @@
 import type {
   ChatSuggestionsResponse,
+  ConversationSearchResponse,
   ConversationDetail,
   ConversationListResponse,
   GuestConversationResponse,
   GuestMigrationResponse,
 } from '@a-ai/shared-types';
-import { chatRequestSchema, chatSuggestionsRequestSchema } from '@a-ai/validation';
+import {
+  chatRequestSchema,
+  chatSuggestionsRequestSchema,
+  conversationSearchQuerySchema,
+} from '@a-ai/validation';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { hashedIp, requireUser, resolveIdentity } from '../../plugins/auth.js';
@@ -75,6 +80,17 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     reply.header('cache-control', 'no-store');
     return { conversations: list.map(toConversationSummary) };
   });
+
+  /** Chats whose title or messages contain the text (MODEL-071). */
+  app.get(
+    '/api/conversations/search',
+    async (request, reply): Promise<ConversationSearchResponse> => {
+      const { user } = await requireUser(request, reply);
+      const { q } = conversationSearchQuerySchema.parse(request.query ?? {});
+      reply.header('cache-control', 'no-store');
+      return app.services.chatSearch.search(user.id, q);
+    },
+  );
 
   app.get('/api/conversations/:id', async (request, reply): Promise<ConversationDetail> => {
     const { user } = await requireUser(request, reply);

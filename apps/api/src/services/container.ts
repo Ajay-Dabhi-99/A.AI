@@ -11,6 +11,7 @@ import { InstructionsService } from '../modules/users/instructions.service.js';
 import { ProfileService } from '../modules/users/profile.service.js';
 import { SessionService } from '../modules/auth/session.service.js';
 import { ChatService } from '../modules/chat/chat.service.js';
+import { ChatSearchService } from '../modules/chat/search.service.js';
 import { ShareService } from '../modules/chat/share.service.js';
 import {
   createPrismaShareRepository,
@@ -111,6 +112,8 @@ export type AppServices = {
   chat: ChatService;
   /** Public read-only chat links (MODEL-070). */
   shares: ShareService;
+  /** Search in chat titles and messages (MODEL-071). */
+  chatSearch: ChatSearchService;
   /** Follow-up questions after an answer (MODEL-067). */
   suggestions: SuggestionService;
   comparison: ComparisonService;
@@ -336,6 +339,7 @@ export function createServices(input: {
       clock,
       logger,
     }),
+    chatSearch: new ChatSearchService(conversations),
     shares: new ShareService({
       shares: overrides.shares ?? createPrismaShareRepository(prisma),
       conversations,

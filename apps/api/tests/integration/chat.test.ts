@@ -2,6 +2,7 @@ import { AIProviderError } from '@a-ai/ai-core';
 import type { ChatStreamEvent } from '@a-ai/shared-types';
 import {
   chatSuggestionsResponseSchema,
+  conversationSearchResponseSchema,
   conversationDetailSchema,
   conversationListResponseSchema,
   guestConversationResponseSchema,
@@ -423,6 +424,43 @@ describe('personal instructions in chats (MODEL-069)', () => {
     ctx.provider.setScripts([say('Ok'), done]);
     await chat(ctx, { message: 'Hi' });
     expect(system(ctx)).not.toContain('personal instructions');
+  });
+});
+
+describe('GET /api/conversations/search (MODEL-071)', () => {
+  it("finds your chats by message text and never shows other users' chats", async () => {
+    ctx = await buildChatTestApp();
+    ctx.provider.setScripts([say('Rent should be under 30% of pay.'), done]);
+    const me = { [SESSION]: await signedInUser(ctx, 'me@example.com') };
+    const other = { [SESSION]: await signedInUser(ctx, 'other@example.com') };
+    await chat(ctx, { message: 'Is 50% of salary on rent too much?' }, me);
+    await chat(ctx, { message: 'My 50% secret' }, other);
+
+    const find = (q: string, cookies: Record<string, string> = me) =>
+      ctx!.app.inject({ url: `/api/conversations/search?q=${encodeURIComponent(q)}`, cookies });
+
+    const found = await find('50%');
+    expect(found.statusCode).toBe(200);
+    expect(found.headers['cache-control']).toBe('no-store');
+    const { results } = conversationSearchResponseSchema.parse(found.json());
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({
+      title: 'Is 50% of salary on rent too much?',
+      matchedIn: 'title',
+      snippet: 'Is 50% of salary on rent too much?',
+    });
+
+    const inAnswer = conversationSearchResponseSchema.parse((await find('UNDER 30%')).json());
+    expect(inAnswer.results[0]).toMatchObject({
+      matchedIn: 'message',
+      snippet: 'Rent should be under 30% of pay.',
+    });
+    expect(conversationSearchResponseSchema.parse((await find('secret')).json()).results).toEqual(
+      [],
+    );
+
+    expect((await find('a')).statusCode).toBe(400);
+    expect((await ctx.app.inject({ url: '/api/conversations/search' })).statusCode).toBe(401);
   });
 });
 
