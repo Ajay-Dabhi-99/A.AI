@@ -4,7 +4,15 @@
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
   "buildCommand": "cd ../.. && pnpm turbo run build --filter=@a-ai/web...",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://a-ai-csbq.onrender.com/api/:path*"
+    },
+    { "source": "/health", "destination": "https://a-ai-csbq.onrender.com/health" },
+    { "source": "/ready", "destination": "https://a-ai-csbq.onrender.com/ready" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
   "headers": [
     {
       "source": "/(.*)",
@@ -23,6 +31,10 @@
         },
         { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" }
       ]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [{ "key": "x-vercel-enable-rewrite-caching", "value": "0" }]
     },
     {
       "source": "/assets/(.*)",
