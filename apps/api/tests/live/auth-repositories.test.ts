@@ -46,6 +46,7 @@ describe('migration', () => {
     const rows = await prisma.$queryRaw<{ relname: string; relrowsecurity: boolean }[]>`
       SELECT relname, relrowsecurity FROM pg_class
       WHERE relname IN ('users', 'sessions', 'auth_tokens') AND relkind = 'r'
+      AND relnamespace = 'public'::regnamespace
       ORDER BY relname`;
     expect(rows).toEqual([
       { relname: 'auth_tokens', relrowsecurity: true },

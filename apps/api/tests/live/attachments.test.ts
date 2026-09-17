@@ -121,7 +121,9 @@ describe('attachments in PostgreSQL', () => {
   it('enables row level security on the new tables', async () => {
     const rows = await prisma.$queryRaw<{ relname: string; relrowsecurity: boolean }[]>`
       SELECT relname, relrowsecurity FROM pg_class
-      WHERE relname IN ('attachments', 'generation_jobs') ORDER BY relname`;
+      WHERE relname IN ('attachments', 'generation_jobs') AND relkind = 'r'
+      AND relnamespace = 'public'::regnamespace
+      ORDER BY relname`;
     expect(rows).toEqual([
       { relname: 'attachments', relrowsecurity: true },
       { relname: 'generation_jobs', relrowsecurity: true },

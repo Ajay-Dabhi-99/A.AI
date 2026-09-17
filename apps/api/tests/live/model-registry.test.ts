@@ -61,7 +61,8 @@ afterAll(async () => {
 describe('registry migration', () => {
   it('created model_registry with RLS and added the role column', async () => {
     const [table] = await prisma.$queryRaw<{ relrowsecurity: boolean }[]>`
-      SELECT relrowsecurity FROM pg_class WHERE relname = 'model_registry' AND relkind = 'r'`;
+      SELECT relrowsecurity FROM pg_class WHERE relname = 'model_registry' AND relkind = 'r'
+      AND relnamespace = 'public'::regnamespace`;
     expect(table?.relrowsecurity).toBe(true);
 
     const email = `live-role-${randomUUID()}@example.test`;
