@@ -29,7 +29,7 @@ export function DialogContent({
       <Overlay />
       <DialogPrimitive.Content
         className={cn(
-          'dialog-panel fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-surface p-5 text-foreground shadow-2xl',
+          'dialog-panel fixed top-1/2 outline-none left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-surface p-5 text-foreground shadow-2xl',
           className,
         )}
         {...(description === undefined ? { 'aria-describedby': undefined } : {})}
@@ -66,7 +66,7 @@ export function SheetContent({
         data-side={side}
         aria-describedby={undefined}
         className={cn(
-          'sheet-panel fixed inset-y-0 z-50 flex w-[min(20rem,calc(100%-3rem))] flex-col bg-background px-3 pt-12 pb-3 shadow-2xl',
+          'sheet-panel fixed inset-y-0 outline-none z-50 flex w-[min(20rem,calc(100%-3rem))] flex-col bg-background px-3 pt-12 pb-3 shadow-2xl',
           side === 'left' ? 'left-0 border-r border-border' : 'right-0 border-l border-border',
           className,
         )}

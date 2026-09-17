@@ -11,6 +11,11 @@ import { InstructionsService } from '../modules/users/instructions.service.js';
 import { ProfileService } from '../modules/users/profile.service.js';
 import { SessionService } from '../modules/auth/session.service.js';
 import { ChatService } from '../modules/chat/chat.service.js';
+import { ShareService } from '../modules/chat/share.service.js';
+import {
+  createPrismaShareRepository,
+  type ShareRepository,
+} from '../repositories/share.repository.js';
 import { SuggestionService } from '../modules/chat/suggestion.service.js';
 import { GuestConversationStore } from '../modules/chat/guest-conversation.store.js';
 import { ComparisonService } from '../modules/comparison/comparison.service.js';
@@ -104,6 +109,8 @@ export type AppServices = {
   /** Context budgets, summaries and calibration (Phase 5). */
   context: ContextService;
   chat: ChatService;
+  /** Public read-only chat links (MODEL-070). */
+  shares: ShareService;
   /** Follow-up questions after an answer (MODEL-067). */
   suggestions: SuggestionService;
   comparison: ComparisonService;
@@ -148,6 +155,8 @@ export type ServiceOverrides = {
   /** Replaces Supabase Storage (or the disabled storage when it is not configured). */
   storage?: ObjectStorage;
   generationJobs?: GenerationJobRepository;
+  /** Public chat snapshots (MODEL-070). */
+  shares?: ShareRepository;
   /** Replaces the image providers built from the environment (Cloudflare Workers AI). */
   imageProviders?: MediaGenerationProvider[];
   imageJobTimeoutMs?: number;
@@ -326,6 +335,12 @@ export function createServices(input: {
       ...(overrides.retryPolicy ? { retryPolicy: overrides.retryPolicy } : {}),
       clock,
       logger,
+    }),
+    shares: new ShareService({
+      shares: overrides.shares ?? createPrismaShareRepository(prisma),
+      conversations,
+      models,
+      clock,
     }),
     suggestions: new SuggestionService({
       enabled: env.CHAT_SUGGESTIONS_ENABLED,

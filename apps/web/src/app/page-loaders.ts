@@ -1,5 +1,6 @@
 /** Code-split pages (see lazy-pages.tsx), loadable on demand or ahead of time. */
 export const loaders = {
+  sharedChatPage: () => import('@/pages/shared-chat-page'),
   comparePage: () => import('@/pages/compare-page'),
   modelsPage: () => import('@/pages/models-page'),
   imagePage: () => import('@/pages/image-page'),

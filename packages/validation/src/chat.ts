@@ -5,6 +5,8 @@ import type {
   ChatStreamEventMap,
   ChatStreamEventName,
   ChatSuggestionsResponse,
+  ConversationShareResponse,
+  SharedConversation,
   ConversationDetail,
   ConversationListResponse,
   GuestConversationResponse,
@@ -143,6 +145,33 @@ export const conversationDetailSchema = conversationSummarySchema.extend({
   // Defaults to none so the web app still reads an API from before MODEL-065.
   mediaJobs: z.array(mediaJobSchema).default([]),
 }) satisfies z.ZodType<ConversationDetail>;
+
+export const conversationShareResponseSchema = z.object({
+  share: z
+    .object({
+      token: z.string(),
+      messageCount: z.number().int().nonnegative(),
+      createdAt: z.string(),
+      updatedAt: z.string(),
+    })
+    .nullable(),
+}) satisfies z.ZodType<ConversationShareResponse>;
+
+export const sharedConversationSchema = z.object({
+  title: z.string(),
+  messages: z.array(
+    z.object({
+      role: z.enum(['user', 'assistant']),
+      content: z.string(),
+      model: z.string().nullable(),
+    }),
+  ),
+  sharedAt: z.string(),
+  truncated: z.boolean(),
+}) satisfies z.ZodType<SharedConversation>;
+
+/** Share tokens: 32 random bytes, base64url (43 characters). */
+export const shareTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{32,64}$/);
 
 export const guestConversationResponseSchema = z.object({
   messages: z.array(chatMessageSchema),

@@ -11,6 +11,7 @@ import { authRoutes } from './modules/auth/auth.routes.js';
 import { audioRoutes } from './modules/audio/audio.routes.js';
 import { JOB_RECOVERY_INTERVAL_MS } from './modules/jobs/job-center.js';
 import { mediaRoutes } from './modules/jobs/media.routes.js';
+import { shareRoutes } from './modules/chat/share.routes.js';
 import { chatRoutes } from './modules/chat/chat.routes.js';
 import { comparisonRoutes } from './modules/comparison/comparison.routes.js';
 import { historyRoutes } from './modules/history/history.routes.js';
@@ -126,6 +127,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(authRoutes, { prefix: '/api/auth' });
   await app.register(meRoutes);
   await app.register(chatRoutes);
+  await app.register(shareRoutes);
   await app.register(comparisonRoutes);
   await app.register(historyRoutes);
   await app.register(modelRoutes);

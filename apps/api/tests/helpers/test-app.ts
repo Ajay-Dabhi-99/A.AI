@@ -17,6 +17,7 @@ import {
   type MemoryGenerationJobs,
 } from './memory-attachments.js';
 import { createMemoryHistory } from './memory-history.js';
+import { createMemoryShares } from './memory-shares.js';
 import { createMemoryModelRegistry } from './memory-model-registry.js';
 import { ScriptedProvider, testModel } from './scripted-provider.js';
 import { createMemoryRepositories, type MemoryRepositories } from './memory-repositories.js';
@@ -49,6 +50,7 @@ function memoryStores(services: ServiceOverrides | undefined) {
     ),
     storage: createMemoryStorage(),
     generationJobs,
+    shares: createMemoryShares(),
     // testEnv sets a fake GROQ_API_KEY: never let a test build the real speech-to-text adapter.
     transcription: null,
   };

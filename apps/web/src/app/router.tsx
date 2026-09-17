@@ -17,6 +17,7 @@ import {
   ImagePage,
   ModelsPage,
   SettingsPage,
+  SharedChatPage,
   VideoPage,
 } from './lazy-pages';
 import { RequireUser } from './require-user';
@@ -38,6 +39,8 @@ export const routes: RouteObject[] = [
       // Guests and users; saved conversations (/chat/:id) need an account.
       { path: 'chat', element: <ChatPage /> },
       { path: 'chat/:conversationId', element: <ChatPage /> },
+      // Public read-only snapshot of a chat (MODEL-070).
+      { path: 'share/:token', element: <SharedChatPage /> },
       // Guests (2 models) and users (4 models); results are streamed side by side.
       { path: 'compare', element: <ComparePage /> },
       // Public catalog; admin controls appear for administrators.

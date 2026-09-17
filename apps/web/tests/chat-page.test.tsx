@@ -818,7 +818,7 @@ describe('chat page for a signed-in user', () => {
       within(menu)
         .getAllByRole('menuitem')
         .map((item) => item.textContent),
-    ).toEqual(['Rename', 'Pin to top', 'Delete']);
+    ).toEqual(['Rename', 'Pin to top', 'Share', 'Delete']);
     fireEvent.keyDown(menu, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
 

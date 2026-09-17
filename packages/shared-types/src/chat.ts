@@ -35,6 +35,35 @@ export type ConversationSummary = {
   updatedAt: string;
 };
 
+/** A chat's public link (MODEL-070); the web app builds the URL from the token. */
+export type ConversationShare = {
+  token: string;
+  messageCount: number;
+  /** When the link was first created. */
+  createdAt: string;
+  /** When the snapshot was last taken. */
+  updatedAt: string;
+};
+
+/** GET and POST /api/conversations/:id/share */
+export type ConversationShareResponse = { share: ConversationShare | null };
+
+export type SharedMessage = {
+  role: 'user' | 'assistant';
+  content: string;
+  /** Display name of the model that answered, when known. */
+  model: string | null;
+};
+
+/** GET /api/shared/:token (public) */
+export type SharedConversation = {
+  title: string;
+  messages: SharedMessage[];
+  sharedAt: string;
+  /** True when only the newest messages fit in the snapshot. */
+  truncated: boolean;
+};
+
 /** POST /api/chat/suggestions (MODEL-067) */
 export type ChatSuggestionsResponse = {
   /** Up to three follow-up questions; empty when none could be made. */

@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   chatRequestSchema,
   conversationListResponseSchema,
+  conversationShareResponseSchema,
   parseChatStreamEvent,
+  sharedConversationSchema,
+  shareTokenSchema,
 } from '../src/index.js';
 
 const base = { provider: 'groq', model: 'openai/gpt-oss-20b' };
@@ -74,6 +77,36 @@ describe('parseChatStreamEvent', () => {
     expect(parseChatStreamEvent('toString', '{}')).toBeNull();
     expect(parseChatStreamEvent('message.delta', '{oops')).toBeNull();
     expect(parseChatStreamEvent('message.delta', '{"runId":"r1"}')).toBeNull();
+  });
+});
+
+describe('share contracts (MODEL-070)', () => {
+  it('accepts only base64url tokens of a sensible length', () => {
+    expect(shareTokenSchema.safeParse('a'.repeat(43)).success).toBe(true);
+    expect(shareTokenSchema.safeParse('Ab_-'.repeat(11)).success).toBe(true);
+    for (const bad of ['short', 'a'.repeat(65), `${'a'.repeat(42)}/`, `${'a'.repeat(42)}=`]) {
+      expect(shareTokenSchema.safeParse(bad).success).toBe(false);
+    }
+  });
+
+  it('reads a share and a shared chat', () => {
+    expect(conversationShareResponseSchema.parse({ share: null })).toEqual({ share: null });
+    expect(
+      sharedConversationSchema.safeParse({
+        title: 'Trip',
+        messages: [{ role: 'user', content: 'Hi', model: null }],
+        sharedAt: '2026-09-17T10:00:00.000Z',
+        truncated: false,
+      }).success,
+    ).toBe(true);
+    expect(
+      sharedConversationSchema.safeParse({
+        title: 'Trip',
+        messages: [{ role: 'system', content: 'secret', model: null }],
+        sharedAt: '2026-09-17T10:00:00.000Z',
+        truncated: false,
+      }).success,
+    ).toBe(false);
   });
 });
 
