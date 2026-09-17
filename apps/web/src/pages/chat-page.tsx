@@ -214,8 +214,10 @@ export function ChatPage() {
     body = <GuestChat />;
   }
 
+  // The chat fills the viewport minus the header (h-16 plus its 1px bottom
+  // border) and the 30px footer, so only the message list scrolls.
   return (
-    <div className="mx-auto h-[calc(100svh-4rem-30px)] max-w-6xl px-3 py-3 sm:px-5 sm:py-4">
+    <div className="mx-auto h-[calc(100svh-4rem-1px-30px)] max-w-6xl px-3 py-3 sm:px-5 sm:py-4">
       {body}
     </div>
   );
