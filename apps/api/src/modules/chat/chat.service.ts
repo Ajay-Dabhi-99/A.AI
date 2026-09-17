@@ -40,6 +40,7 @@ import type {
 } from '../../services/context.service.js';
 import type { QuotaService, QuotaSubject } from '../../services/quota.service.js';
 import type { Clock } from '../../shared/clock.js';
+import { withInstructions, type InstructionsService } from '../users/instructions.service.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { AttachmentService } from '../attachments/attachment.service.js';
 import type { GuestSession } from '../guest/guest.service.js';
@@ -77,6 +78,8 @@ export type ChatServiceDeps = {
   attachments: Pick<AttachmentService, 'prepareForMessage' | 'attach' | 'forMessages'>;
   /** Let another healthy model answer when the chosen one fails before any text (ADR-013). */
   fallbackEnabled: boolean;
+  /** A signed-in user's personal instructions (MODEL-069); none when absent. */
+  instructions?: Pick<InstructionsService, 'forChat'>;
   retryPolicy?: Partial<RetryPolicy>;
   clock: Clock;
   logger: FastifyBaseLogger;
@@ -210,12 +213,18 @@ export class ChatService {
     }
     const sendsNewMessage = !input.retry && rewind === null;
 
+    // Personal instructions shape every answer for signed-in users (MODEL-069).
+    const systemPrompt =
+      caller.kind === 'user' && this.#deps.instructions
+        ? withInstructions(SYSTEM_PROMPT, await this.#deps.instructions.forChat(caller.userId))
+        : SYSTEM_PROMPT;
+
     const planFor = (candidate: AIModel) => {
       const maxOutputTokens = Math.min(candidate.maxOutputTokens, CHAT_MAX_OUTPUT_TOKENS);
       return context
         .plan({
           model: candidate,
-          systemPrompt: SYSTEM_PROMPT,
+          systemPrompt,
           maxOutputTokens,
           history,
           summary,

@@ -385,6 +385,47 @@ describe('regenerate and edit (MODEL-068)', () => {
   });
 });
 
+describe('personal instructions in chats (MODEL-069)', () => {
+  const system = (context: ChatTestContext) =>
+    context.provider.requests.at(-1)?.messages[0]?.content ?? '';
+
+  it("adds a signed-in user's instructions to the system prompt while they are on", async () => {
+    ctx = await buildChatTestApp();
+    ctx.provider.setScripts([say('Ok'), done]);
+    const cookies = { [SESSION]: await signedInUser(ctx) };
+    const setInstructions = (payload: object) =>
+      ctx!.app.inject({
+        method: 'PATCH',
+        url: '/api/me/instructions',
+        headers: { origin: WEB_ORIGIN },
+        payload,
+        cookies,
+      });
+
+    await chat(ctx, { message: 'Hi' }, cookies);
+    expect(system(ctx)).not.toContain('personal instructions');
+
+    await setInstructions({ about: 'I am a nurse.', style: 'Answer in Hindi.', enabled: true });
+    await chat(ctx, { message: 'Hi again' }, cookies);
+    expect(system(ctx)).toContain('I am a nurse.');
+    expect(system(ctx)).toContain('Answer in Hindi.');
+    expect(ctx.provider.requests.at(-1)?.messages.filter((m) => m.role === 'system')).toHaveLength(
+      1,
+    );
+
+    await setInstructions({ about: 'I am a nurse.', style: 'Answer in Hindi.', enabled: false });
+    await chat(ctx, { message: 'Once more' }, cookies);
+    expect(system(ctx)).not.toContain('I am a nurse.');
+  });
+
+  it('never applies to guests', async () => {
+    ctx = await buildChatTestApp();
+    ctx.provider.setScripts([say('Ok'), done]);
+    await chat(ctx, { message: 'Hi' });
+    expect(system(ctx)).not.toContain('personal instructions');
+  });
+});
+
 describe('POST /api/guest/migrate', () => {
   it('moves the guest chat into the new account exactly once', async () => {
     ctx = await buildChatTestApp();

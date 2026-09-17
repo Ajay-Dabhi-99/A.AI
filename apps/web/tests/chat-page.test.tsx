@@ -944,6 +944,22 @@ describe('chat page for a signed-in user', () => {
     expect(within(sidebar).getByRole('link', { name: 'Vector databases' })).toBeInTheDocument();
   });
 
+  it('says when personal instructions are on and links to them', async () => {
+    mockApi({
+      ...baseRoutes,
+      '/api/me': () => jsonResponse(userMe),
+      'GET /api/models': modelsRoute,
+      'GET /api/conversations': () => jsonResponse({ conversations: [] }),
+      'GET /api/me/instructions': () =>
+        jsonResponse({ instructions: { about: 'I am a nurse.', style: null, enabled: true } }),
+    });
+    renderApp('/chat');
+    expect(await screen.findByRole('link', { name: 'Personal instructions on' })).toHaveAttribute(
+      'href',
+      '/settings',
+    );
+  });
+
   it('explains a conversation that does not exist', async () => {
     mockApi({
       ...baseRoutes,

@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { applyServerError } from '@/features/auth/form-errors';
 import { useLogout, useLogoutEverywhere } from '@/features/auth/use-auth-actions';
 import { displayName, initials, profileCompletion } from '@/features/profile/identity';
+import { InstructionsCard } from '@/features/profile/instructions-card';
 import { InterestsCard } from '@/features/onboarding/interests-card';
 import { ProfileForm } from '@/features/profile/profile-form';
 import { currentUser, useMe } from '@/hooks/use-me';
@@ -254,6 +255,7 @@ export function SettingsPage() {
         <div className="min-w-0 space-y-6">
           <UsageCard quota={data.quota} />
           <ProfileForm user={user} />
+          <InstructionsCard />
           <InterestsCard key={user.interests.join('|')} user={user} />
 
           <section

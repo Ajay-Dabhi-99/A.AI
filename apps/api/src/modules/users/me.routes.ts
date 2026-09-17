@@ -1,5 +1,13 @@
-import type { AuthUserResponse, MeResponse } from '@a-ai/shared-types';
-import { interestsUpdateSchema, profileUpdateSchema } from '@a-ai/validation';
+import type {
+  AuthUserResponse,
+  MeResponse,
+  PersonalInstructionsResponse,
+} from '@a-ai/shared-types';
+import {
+  instructionsUpdateSchema,
+  interestsUpdateSchema,
+  profileUpdateSchema,
+} from '@a-ai/validation';
 import type { FastifyInstance } from 'fastify';
 import { requireUser, resolveIdentity } from '../../plugins/auth.js';
 import { toAuthUser } from '../auth/auth.service.js';
@@ -38,6 +46,24 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
     const user = await app.services.profile.update(identity.user.id, input);
     return { user: toAuthUser(user) };
   });
+
+  /** The signed-in account's personal instructions (MODEL-069). */
+  app.get('/api/me/instructions', async (request, reply): Promise<PersonalInstructionsResponse> => {
+    const identity = await requireUser(request, reply);
+    reply.header('cache-control', 'no-store');
+    return { instructions: await app.services.instructions.get(identity.user.id) };
+  });
+
+  /** Replace them; blank text clears a field, `enabled: false` stops sending them. */
+  app.patch(
+    '/api/me/instructions',
+    async (request, reply): Promise<PersonalInstructionsResponse> => {
+      const identity = await requireUser(request, reply);
+      const input = instructionsUpdateSchema.parse(request.body ?? {});
+      reply.header('cache-control', 'no-store');
+      return { instructions: await app.services.instructions.update(identity.user.id, input) };
+    },
+  );
 
   /** Replace the signed-in account's chat topics (MODEL-066). */
   app.patch('/api/me/interests', async (request, reply): Promise<AuthUserResponse> => {

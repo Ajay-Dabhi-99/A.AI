@@ -27,6 +27,10 @@ model User {
   interests       String[]       @default([]) @db.VarChar(40)
   /// When the topics were last saved (also when skipped); null until the user answers.
   interestsSetAt  DateTime?      @db.Timestamptz(3)
+  /// Personal instructions sent with every chat while enabled (MODEL-069).
+  instructionsAbout   String?    @db.VarChar(1500)
+  instructionsStyle   String?    @db.VarChar(1500)
+  instructionsEnabled Boolean    @default(true)
   role            UserRole       @default(USER)
   emailVerifiedAt DateTime?      @db.Timestamptz(3)
   createdAt       DateTime       @default(now()) @db.Timestamptz(3)

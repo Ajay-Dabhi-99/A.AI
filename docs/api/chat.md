@@ -74,6 +74,8 @@ Each chat in `ConversationListResponse` and `ConversationDetail` is a `Conversat
 
 None of these use up allowance.
 
+Signed-in users' [personal instructions](auth.md#personal-instructions) are added to the system prompt of every request while they are on (MODEL-069).
+
 ### Regenerate and edit (MODEL-068)
 
 - At most one of `retry`, `regenerate` and `edit`; `attachmentIds` only with a plain new message.

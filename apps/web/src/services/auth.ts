@@ -1,8 +1,15 @@
-import type { AcceptedResponse, AuthUserResponse, MeResponse } from '@a-ai/shared-types';
+import type {
+  AcceptedResponse,
+  AuthUserResponse,
+  MeResponse,
+  PersonalInstructionsResponse,
+} from '@a-ai/shared-types';
 import {
   acceptedResponseSchema,
   authUserResponseSchema,
   meResponseSchema,
+  personalInstructionsResponseSchema,
+  type InstructionsUpdateRequest,
   type EmailRequest,
   type InterestsUpdateRequest,
   type LoginRequest,
@@ -21,6 +28,21 @@ export const updateProfile = (input: ProfileUpdateRequest): Promise<AuthUserResp
     method: 'PATCH',
     body: input,
     schema: authUserResponseSchema,
+  });
+
+export const fetchInstructions = (signal?: AbortSignal): Promise<PersonalInstructionsResponse> =>
+  apiRequest('/api/me/instructions', {
+    schema: personalInstructionsResponseSchema,
+    ...(signal ? { signal } : {}),
+  });
+
+export const updateInstructions = (
+  input: InstructionsUpdateRequest,
+): Promise<PersonalInstructionsResponse> =>
+  apiRequest('/api/me/instructions', {
+    method: 'PATCH',
+    body: input,
+    schema: personalInstructionsResponseSchema,
   });
 
 export const updateInterests = (input: InterestsUpdateRequest): Promise<AuthUserResponse> =>

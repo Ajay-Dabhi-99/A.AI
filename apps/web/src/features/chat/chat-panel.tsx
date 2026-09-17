@@ -19,6 +19,7 @@ import { useMediaStatus } from '@/hooks/use-media-status';
 import { Composer } from './composer';
 import { MessageView } from './message-view';
 import { starterPrompts } from '@/features/onboarding/topic-suggestions';
+import { useInstructions } from '@/hooks/use-instructions';
 import { currentUser, useMe } from '@/hooks/use-me';
 import { FollowUpSuggestions } from './follow-up-suggestions';
 import {
@@ -103,6 +104,9 @@ export function ChatPanel({
   const [awayFromBottom, setAwayFromBottom] = useState(false);
   const audio = useAudioStatus();
   const interests = currentUser(useMe().data)?.interests ?? [];
+  const saved = useInstructions(!isGuest).data?.instructions;
+  const instructionsOn =
+    !isGuest && saved !== undefined && saved.enabled && Boolean(saved.about || saved.style);
   const starters = starterPrompts(interests, SUGGESTIONS);
   // Signed-in users can create images right here when image generation is enabled.
   const imageStatus = useMediaStatus('image');
@@ -362,6 +366,14 @@ export function ChatPanel({
                     {' · '}
                     <Link to="/signup" className="text-primary hover:underline">
                       Sign up to save chats
+                    </Link>
+                  </>
+                )}
+                {instructionsOn && (
+                  <>
+                    {' · '}
+                    <Link to="/settings" className="text-primary hover:underline">
+                      Personal instructions on
                     </Link>
                   </>
                 )}

@@ -4,6 +4,8 @@ This guide takes you from a fresh clone to a live, verified release of A.ai. It 
 
 A printable, click-by-click version (41 numbered steps) is in [A.ai-Deployment-Guide.pdf](A.ai-Deployment-Guide.pdf) and [A.ai-Deployment-Guide.docx](A.ai-Deployment-Guide.docx).
 
+No custom domain yet (site on `*.vercel.app`, API on `*.onrender.com`, Render free plan)? Follow [A.ai-Free-Hosting-Guide.pdf](A.ai-Free-Hosting-Guide.pdf) ([.docx](A.ai-Free-Hosting-Guide.docx)) instead: it forwards `/api` through Vercel so sign-in cookies work.
+
 Replace `example.com` with your own domain throughout.
 
 ---

@@ -7,6 +7,7 @@ import { ModelSummarizer, type ConversationSummarizer } from '../ai/summarizer.j
 import { TokenService } from '../ai/token.service.js';
 import type { PrismaClient } from '../generated/prisma/client.js';
 import { AuthService } from '../modules/auth/auth.service.js';
+import { InstructionsService } from '../modules/users/instructions.service.js';
 import { ProfileService } from '../modules/users/profile.service.js';
 import { SessionService } from '../modules/auth/session.service.js';
 import { ChatService } from '../modules/chat/chat.service.js';
@@ -90,6 +91,8 @@ export type AppServices = {
   sessions: SessionService;
   auth: AuthService;
   profile: ProfileService;
+  /** Personal instructions sent with chats (MODEL-069). */
+  instructions: InstructionsService;
   /** Adapters for providers whose key is configured. */
   adapters: ProviderRegistry;
   /** The model registry: which models exist and whether each is usable. */
@@ -272,6 +275,8 @@ export function createServices(input: {
         ? new GroqTranscriptionProvider({ apiKey: env.GROQ_API_KEY })
         : null;
 
+  const instructions = new InstructionsService(repositories);
+
   const sessions = new SessionService({
     sessions: repositories.sessions,
     secret: env.JWT_SECRET,
@@ -302,6 +307,7 @@ export function createServices(input: {
       logger,
     }),
     profile: new ProfileService(repositories, clock),
+    instructions,
     adapters,
     models,
     health,
@@ -316,6 +322,7 @@ export function createServices(input: {
       quota,
       attachments,
       fallbackEnabled: env.CHAT_FALLBACK_ENABLED,
+      instructions,
       ...(overrides.retryPolicy ? { retryPolicy: overrides.retryPolicy } : {}),
       clock,
       logger,
