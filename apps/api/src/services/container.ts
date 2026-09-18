@@ -26,6 +26,7 @@ import {
   catalogModels,
   createAdapterRegistry,
   DEFAULT_PROVIDER_NAMES,
+  PREFERRED_DEFAULT_MODEL,
   providerEntriesFromEnv,
   registryDefaults,
   type ProviderEntry,
@@ -231,6 +232,7 @@ export function createServices(input: {
       overrides.providers ? entries.flatMap((entry) => [...entry.models]) : catalogModels(),
     ),
     providerNames: DEFAULT_PROVIDER_NAMES,
+    preferredDefault: PREFERRED_DEFAULT_MODEL,
     clock,
     logger,
   });

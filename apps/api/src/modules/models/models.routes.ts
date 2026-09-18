@@ -29,10 +29,10 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/models', async (_request, reply): Promise<ModelsResponse> => {
     reply.header('cache-control', 'private, max-age=60');
     const available = await models.available();
-    const first = available[0];
+    const preferred = await models.defaultModel();
     return {
       models: available,
-      defaultModel: first ? { provider: first.provider, id: first.id } : null,
+      defaultModel: preferred ? { provider: preferred.provider, id: preferred.id } : null,
       providers: await models.providers(),
     };
   });

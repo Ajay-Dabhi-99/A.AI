@@ -84,17 +84,6 @@ export const MODEL_CATALOG: Readonly<Record<ProviderKey, readonly AIModel[]>> = 
   gemini: [
     {
       ...text,
-      id: 'gemini-3.8-flash',
-      provider: 'gemini',
-      name: 'Gemini 3.8 Flash',
-      contextWindow: 1_048_576,
-      maxOutputTokens: 65_536,
-      supportsVision: true,
-      supportsTools: true,
-      availability: 'free-tier',
-    },
-    {
-      ...text,
       id: 'gemini-3.5-flash-lite',
       provider: 'gemini',
       name: 'Gemini 3.5 Flash-Lite',
@@ -104,7 +93,30 @@ export const MODEL_CATALOG: Readonly<Record<ProviderKey, readonly AIModel[]>> = 
       supportsTools: true,
       availability: 'free-tier',
     },
+    {
+      ...text,
+      id: 'gemini-3.8-flash',
+      provider: 'gemini',
+      name: 'Gemini 3.8 Flash',
+      contextWindow: 1_048_576,
+      maxOutputTokens: 65_536,
+      supportsVision: true,
+      supportsTools: true,
+      availability: 'free-tier',
+    },
   ],
+};
+
+/**
+ * The model a new chat starts with. It is named here rather than inferred from
+ * the order above, so that adding a model, reordering the registry or an admin
+ * changing `sortOrder` cannot move the default by accident, and so changing it
+ * is one reviewable line. The API falls back to the first available model when
+ * this one is disabled or its provider has no key.
+ */
+export const DEFAULT_MODEL: { readonly provider: ProviderKey; readonly id: string } = {
+  provider: 'gemini',
+  id: 'gemini-3.5-flash-lite',
 };
 
 const ENDPOINTS: Readonly<

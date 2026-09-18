@@ -2,6 +2,7 @@ import { AIProviderError, type AIStreamChunk } from '@a-ai/ai-core';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createProvider,
+  DEFAULT_MODEL,
   MODEL_CATALOG,
   OpenAICompatibleProvider,
   type OpenAICompatibleOptions,
@@ -276,5 +277,16 @@ describe('catalog', () => {
       }
     }
     expect(MODEL_CATALOG.groq.map((model) => model.id)).not.toContain('llama-3.3-70b-versatile');
+  });
+
+  it('names a default model that the catalog actually offers', () => {
+    const model = MODEL_CATALOG[DEFAULT_MODEL.provider].find(
+      (entry) => entry.id === DEFAULT_MODEL.id,
+    );
+    expect(
+      model,
+      `${DEFAULT_MODEL.provider}/${DEFAULT_MODEL.id} is not in the catalog`,
+    ).toBeDefined();
+    expect(model?.supportsStreaming).toBe(true);
   });
 });

@@ -41,7 +41,48 @@ export function apiUrl(path: string, baseUrl: string = webEnv.VITE_API_URL): str
   return `${baseUrl}${path}`;
 }
 
-async function request(path: string, init: RequestInit = {}): Promise<Response> {
+/**
+ * Waits before each further attempt at a request a proxy refused, in
+ * milliseconds. The API runs on an instance that sleeps after an idle period
+ * and takes roughly 20-60 seconds to boot; while it boots, the proxy in front
+ * of it answers immediately, so these five attempts span about 32 seconds of
+ * booting rather than 32 seconds of a hung connection.
+ */
+const COLD_START_BACKOFF_MS: readonly number[] = [1_000, 3_000, 8_000, 20_000];
+
+/** Statuses a proxy in front of the API produces on its own. */
+const GATEWAY_STATUSES = new Set([502, 503, 504]);
+
+/**
+ * True when the response came from a proxy rather than from the API. Every
+ * reply the API sends carries x-request-id, set before routing, so a gateway
+ * status without that header means the request never reached the app. The
+ * header matters because 503 is also a real answer: /ready reports a degraded
+ * platform with it, and that must be shown, not retried.
+ */
+function isGatewayFailure(response: Response): boolean {
+  return GATEWAY_STATUSES.has(response.status) && !response.headers.has('x-request-id');
+}
+
+function wait(ms: number, signal: AbortSignal | null | undefined): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason as Error);
+      return;
+    }
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      reject(signal?.reason as Error);
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+async function sendOnce(path: string, init: RequestInit): Promise<Response> {
   try {
     return await fetch(apiUrl(path), {
       ...init,
@@ -52,6 +93,25 @@ async function request(path: string, init: RequestInit = {}): Promise<Response> 
     if (init.signal?.aborted) throw error;
     throw new NetworkError(error);
   }
+}
+
+async function request(path: string, init: RequestInit = {}): Promise<Response> {
+  // Only a proxy's answer is waited out. A request that threw never got an
+  // answer at all, which is an unreachable API rather than a booting one, and is
+  // reported at once so the status pill stays honest.
+  //
+  // Only GET is replayed: repeating it changes nothing on the server, so asking
+  // again for an answer that never arrived is free. A POST, PATCH or DELETE may
+  // have been carried out before its answer was lost, so it is sent once.
+  const backoff = (init.method ?? 'GET') === 'GET' ? COLD_START_BACKOFF_MS : [];
+
+  for (const retryIn of backoff) {
+    const response = await sendOnce(path, init);
+    if (!isGatewayFailure(response)) return response;
+    await wait(retryIn, init.signal);
+  }
+
+  return sendOnce(path, init);
 }
 
 /** Reads the error envelope from a failed response. */

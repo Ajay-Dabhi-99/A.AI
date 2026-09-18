@@ -19,10 +19,23 @@ export function renderApp(
   return { ...result, router };
 }
 
+/**
+ * A reply from the API. x-request-id is part of it because the API sets that
+ * header on every response before routing, and the client reads it to tell an
+ * answer from the app apart from a proxy's gateway error.
+ */
 export function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'x-request-id': 'req-test' },
+  });
+}
+
+/** A proxy's error page: a gateway status, and no header from the app. */
+export function gatewayResponse(status = 502): Response {
+  return new Response('<html><body>Bad gateway</body></html>', {
+    status,
+    headers: { 'content-type': 'text/html' },
   });
 }
 

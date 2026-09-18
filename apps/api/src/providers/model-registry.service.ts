@@ -28,6 +28,8 @@ export type ModelRegistryServiceDeps = {
   clock: Clock;
   logger: FastifyBaseLogger;
   cacheTtlMs?: number;
+  /** The model new chats start with, when it is available. Omitted: the first available one. */
+  preferredDefault?: { provider: string; id: string };
 };
 
 function toAIModel(row: ModelRegistryRecord): AIModel {
@@ -73,6 +75,22 @@ export class ModelRegistryService {
   /** Models that can be used right now, in display order. */
   async available(): Promise<AIModel[]> {
     return (await this.#rows()).filter((row) => this.#status(row) === 'available').map(toAIModel);
+  }
+
+  /**
+   * The model a new chat starts with: the preferred default while it can be
+   * used, and otherwise the first model in display order. Null when no model is
+   * available at all, which is what a deployment with no provider key looks like.
+   */
+  async defaultModel(): Promise<AIModel | null> {
+    const available = await this.available();
+    const preferred = this.#deps.preferredDefault;
+    const match = preferred
+      ? available.find(
+          (model) => model.provider === preferred.provider && model.id === preferred.id,
+        )
+      : undefined;
+    return match ?? available[0] ?? null;
   }
 
   async providers(): Promise<ProviderInfo[]> {
