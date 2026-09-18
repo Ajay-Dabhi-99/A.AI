@@ -30,6 +30,7 @@ Models that can be used for chat right now.
 ```
 
 - Only `available` models (enabled, provider key configured), ordered by `sortOrder`. With no keys, `models` is empty and `defaultModel` is `null`.
+- `defaultModel` is the model a new chat starts with: `DEFAULT_MODEL` from the code catalog (`packages/ai-providers/src/catalog.ts`, currently Gemini 3.5 Flash-Lite) while it is available, and otherwise the first entry in `models`. The example above is a deployment with only a Groq key, so it fell back. The default is named in code rather than taken from `sortOrder`, so adding a model or an admin reordering the list cannot move it.
 - `providers` carries display names; the web app never hard-codes them.
 - Cached privately by the browser for 60 seconds.
 

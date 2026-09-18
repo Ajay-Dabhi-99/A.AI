@@ -21,7 +21,7 @@ The product owner chose on 2026-09-17:
 | -------- | --------------------------------------------- | ---------------------- |
 | Web app  | Vercel (static build, `apps/web/vercel.json`) | `https://app.<domain>` |
 | API      | Render web service (`render.yaml`)            | `https://api.<domain>` |
-| Cleanup  | Render cron job, daily 03:30 UTC              | —                      |
+| Cleanup  | Daily 03:30 UTC (see the amendment)           | —                      |
 | Database | Supabase PostgreSQL (production project)      | —                      |
 | Redis    | Upstash (production database)                 | —                      |
 | Files    | Supabase Storage, private bucket              | signed URLs            |
@@ -66,7 +66,7 @@ The Deploy workflow is manual. It runs the gate on the exact commit, triggers bo
 
 ### 6. Migrations, backups and rollback
 
-- **Migrations** run in Render's pre-deploy step (`pnpm db:deploy`) before the new version takes traffic. They are **forward-only and additive** (expand, deploy, contract later), so the previous release keeps working against the new schema and a code rollback never needs a schema rollback.
+- **Migrations** (`pnpm db:deploy`) are applied before the new version takes traffic. On a paid plan that is Render's pre-deploy step; on the free plan it is a manual step before the deploy hook (see the amendment). They are **forward-only and additive** (expand, deploy, contract later), so the previous release keeps working against the new schema and a code rollback never needs a schema rollback.
 - **Rollback:** Render "Rollback" to the previous deploy and Vercel "Instant Rollback" to the previous production deployment. Neither re-runs migrations. Both deployment ids are recorded per release.
 - **Backups:**
   - Supabase daily backups, with point-in-time recovery when the plan includes it; a restore is drilled on staging before launch and quarterly.
@@ -75,6 +75,28 @@ The Deploy workflow is manual. It runs the gate on the exact commit, triggers bo
 
 ## Consequences
 
-- Production needs a domain the owner controls, two Supabase projects (production, test), two Upstash databases, a Render paid plan (pre-deploy commands and cron) and a Vercel project.
+- Production needs a domain the owner controls, two Supabase projects (production, test), two Upstash databases, a Render plan and a Vercel project. A paid Render plan buys pre-deploy commands, cron jobs and an instance that never sleeps; the amendment below records what running without them costs.
 - Nothing here can be verified end to end until those accounts exist. The smoke test is the first thing to run against them.
 - Browser smoke tests need Chromium; they run in CI (the owner chose not to download browsers locally).
+
+## Amendment (2026-09-18): the API runs on the Render free plan
+
+Production launched on Render's free plan, not a paid one. `render.yaml` now
+describes that plan. Three paid features are unavailable, and each is replaced:
+
+| Paid feature       | Free-plan reality                                  | Replacement                                                                                                   |
+| ------------------ | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Always-on instance | Sleeps after 15 idle minutes; a boot takes 20-60 s | `.github/workflows/keep-alive.yml` pings `/health`; the web client retries the gateway errors a boot produces |
+| `preDeployCommand` | Not run                                            | `pnpm db:deploy` is run against production before the deploy hook is triggered                                |
+| Cron jobs          | Not available                                      | `.github/workflows/cleanup.yml` runs the daily attachments cleanup                                            |
+
+While the instance boots, requests are answered by the proxy in front of it with
+a gateway status (502/503/504) and no `x-request-id` header. `apps/web/src/services/api.ts`
+treats exactly that shape as "the request never reached the app" and replays
+GET requests across roughly 32 seconds. It never replays POST, PATCH or DELETE:
+a lost answer does not prove the work was not done.
+
+Migrations are the weak point of this arrangement. Nothing in the deploy path
+applies them, so a release that needs a schema change must have `pnpm db:deploy`
+run against production first. Moving back to a paid plan restores
+`preDeployCommand` and removes that manual step.

@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
-import { ApiError, apiUrl, fetchReadiness, NetworkError } from '../src/services/api';
-import { jsonResponse, readyReport } from './helpers/render';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ApiError, apiRequest, apiUrl, fetchReadiness, NetworkError } from '../src/services/api';
+import { gatewayResponse, jsonResponse, readyReport } from './helpers/render';
 
 describe('apiUrl', () => {
   it('builds same-origin paths by default and absolute URLs when a base is set', () => {
@@ -49,15 +49,75 @@ describe('fetchReadiness', () => {
     });
   });
 
-  it('raises ApiError for unexpected payloads', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response('<html>Bad gateway</html>', { status: 502 }),
-    );
-    await expect(fetchReadiness()).rejects.toMatchObject({ code: 'INTERNAL_ERROR', status: 502 });
-  });
-
   it('raises NetworkError when the API cannot be reached', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
     await expect(fetchReadiness()).rejects.toBeInstanceOf(NetworkError);
+  });
+});
+
+/**
+ * The API sleeps when idle on its current hosting, so the first request after a
+ * quiet period is answered by the proxy in front of it while the instance boots.
+ */
+describe('cold start', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('retries a GET the proxy refused until the API answers', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(gatewayResponse(502))
+      .mockResolvedValueOnce(gatewayResponse(503))
+      .mockResolvedValue(jsonResponse(readyReport));
+
+    const pending = fetchReadiness();
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    await expect(pending).resolves.toEqual(readyReport);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('gives up and reports the last gateway failure', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(gatewayResponse(502));
+
+    const pending = expect(fetchReadiness()).rejects.toMatchObject({
+      code: 'INTERNAL_ERROR',
+      status: 502,
+    });
+    await vi.advanceTimersByTimeAsync(60_000);
+    await pending;
+
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+  });
+
+  it('accepts a 503 the API answered itself instead of retrying it', async () => {
+    const degraded = { ...readyReport, status: 'not_ready' };
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse(degraded, 503));
+
+    await expect(fetchReadiness()).resolves.toMatchObject({ status: 'not_ready' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('never replays a POST, which the API may already have carried out', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(gatewayResponse(504));
+
+    const pending = expect(apiRequest('/api/chat', { method: 'POST', body: {} })).rejects.toThrow(
+      ApiError,
+    );
+    await vi.advanceTimersByTimeAsync(60_000);
+    await pending;
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports an unreachable API at once instead of waiting out a boot', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('offline'));
+
+    await expect(fetchReadiness()).rejects.toBeInstanceOf(NetworkError);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

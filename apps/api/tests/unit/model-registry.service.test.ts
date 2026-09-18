@@ -14,7 +14,9 @@ const fast = testModel('alpha', 'fast');
 const smart = testModel('alpha', 'smart', { name: 'Smart' });
 const other = testModel('beta', 'other', { name: 'Other' });
 
-function setup(options: { configured?: string[] } = {}) {
+function setup(
+  options: { configured?: string[]; preferredDefault?: { provider: string; id: string } } = {},
+) {
   const configured = options.configured ?? ['alpha'];
   const repository = createMemoryModelRegistry();
   const clock = new TestClock('2026-09-14T09:00:00.000Z');
@@ -28,6 +30,7 @@ function setup(options: { configured?: string[] } = {}) {
       adapters,
       defaults: registryDefaults([fast, smart, other]),
       providerNames: { alpha: 'Alpha AI' },
+      ...(options.preferredDefault ? { preferredDefault: options.preferredDefault } : {}),
       clock,
       logger,
     });
@@ -58,6 +61,27 @@ describe('ModelRegistryService', () => {
     const again = await restarted.catalog();
     expect(ctx.repository.rows).toHaveLength(3);
     expect(again[0]?.name).toBe('Renamed by admin');
+  });
+
+  it('starts new chats on the preferred default model', async () => {
+    const ctx = setup({ preferredDefault: { provider: 'alpha', id: 'smart' } });
+    expect((await ctx.service.defaultModel())?.id).toBe('smart');
+  });
+
+  it('falls back to the first available model when the preferred one cannot be used', async () => {
+    // 'other' belongs to beta, which has no key configured.
+    const unconfigured = setup({ preferredDefault: { provider: 'beta', id: 'other' } });
+    expect((await unconfigured.service.defaultModel())?.id).toBe('fast');
+
+    const disabled = setup({ preferredDefault: { provider: 'alpha', id: 'smart' } });
+    const smartRow = (await disabled.service.catalog()).find((model) => model.id === 'smart');
+    await disabled.service.update(smartRow!.registryId, { enabled: false });
+    expect((await disabled.service.defaultModel())?.id).toBe('fast');
+  });
+
+  it('has no default model when no provider is configured', async () => {
+    const ctx = setup({ configured: [] });
+    expect(await ctx.service.defaultModel()).toBeNull();
   });
 
   it('reports each model as available, disabled or provider_not_configured', async () => {

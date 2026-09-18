@@ -1,6 +1,7 @@
 import { ProviderRegistry, type AIProvider } from '@a-ai/ai-core';
 import {
   createProvider,
+  DEFAULT_MODEL,
   MODEL_CATALOG,
   PROVIDER_LABELS,
   type ProviderKey,
@@ -14,8 +15,13 @@ export type ProviderEntry = {
   models: readonly AIModel[];
 };
 
-/** Preferred order for the default model: fastest free tier first. */
-export const PROVIDER_PREFERENCE: readonly ProviderKey[] = ['groq', 'gemini', 'openrouter'];
+/**
+ * The order models are listed in, and seeded into the registry with. It no
+ * longer decides which model is the default (`DEFAULT_MODEL` names that), but it
+ * does decide what the picker shows first and, through registry order, which
+ * model a failed run falls back to (ADR-013).
+ */
+export const PROVIDER_PREFERENCE: readonly ProviderKey[] = ['gemini', 'groq', 'openrouter'];
 
 /** Adapters for every provider whose API key is configured. Missing keys mean absent, never faked. */
 export function providerEntriesFromEnv(env: ServerEnv): ProviderEntry[] {
@@ -33,10 +39,15 @@ export function createAdapterRegistry(entries: readonly ProviderEntry[]): Provid
 
 export const DEFAULT_PROVIDER_NAMES: Readonly<Record<string, string>> = PROVIDER_LABELS;
 
+/** The model new chats start with while it is available (catalog `DEFAULT_MODEL`). */
+export const PREFERRED_DEFAULT_MODEL: { provider: string; id: string } = DEFAULT_MODEL;
+
 /**
- * Registry rows seeded from the code catalog. Order follows provider preference
- * so the default model stays the fastest free tier. verifiedAt is always null:
- * only an admin who confirmed the limits with a real key sets it.
+ * Registry rows seeded from the code catalog, in provider preference order.
+ * Rows are inserted once and never overwritten, so changing that order only
+ * affects a fresh database; existing ones are reordered by a migration.
+ * verifiedAt is always null: only an admin who confirmed the limits with a real
+ * key sets it.
  */
 export function registryDefaults(models: readonly AIModel[]): ModelRegistryDefault[] {
   return models.map((model, index) => ({

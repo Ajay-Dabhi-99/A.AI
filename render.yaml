@@ -1,16 +1,28 @@
-# Render Blueprint for the A.ai API and its daily cleanup job (ADR-017, docs/development/deployment.md).
+# Render Blueprint for the A.ai API (ADR-017, docs/development/deployment.md).
 # Values marked `sync: false` are secrets: set them in the Render dashboard, never here.
 # Deploys are triggered by the GitHub "Deploy" workflow after the full gate passes (autoDeploy: false).
+#
+# This file describes the free plan, which is what production runs on. The free
+# plan withholds three things the paid plans have, and each is covered elsewhere:
+#   - the instance sleeps after 15 idle minutes and needs 20-60 seconds to boot,
+#     so .github/workflows/keep-alive.yml pings /health and the web client
+#     retries the gateway errors a boot produces (apps/web/src/services/api.ts);
+#   - no preDeployCommand, so migrations are applied before the deploy hook is
+#     triggered, not by Render (see docs/development/deployment.md);
+#   - no cron jobs, so .github/workflows/cleanup.yml runs the daily cleanup.
+# Moving to a paid plan means setting `plan: starter`, restoring
+# `preDeployCommand: pnpm db:deploy` and the cron service below, and disabling
+# those two workflows.
 services:
   - type: web
     name: a-ai-api
     runtime: node
-    plan: starter
+    plan: free
     region: singapore
     # NODE_ENV=production during install would skip the build tools (TypeScript, turbo).
     buildCommand: corepack enable && NODE_ENV=development pnpm install --frozen-lockfile && pnpm turbo run build --filter=@a-ai/api...
-    # Forward-only migrations run before the new version receives traffic.
-    preDeployCommand: pnpm db:deploy
+    # preDeployCommand is a paid-plan feature. Forward-only migrations are applied
+    # with `pnpm db:deploy` before the deploy hook is triggered.
     startCommand: node apps/api/dist/server.js
     # Liveness only: a Redis or database outage shows in /ready without restarting the instance.
     healthCheckPath: /health
@@ -59,22 +71,26 @@ services:
       - key: SENTRY_ENVIRONMENT
         value: production
 
-  - type: cron
-    name: a-ai-attachments-cleanup
-    runtime: node
-    plan: starter
-    region: singapore
-    schedule: '30 3 * * *'
-    buildCommand: corepack enable && NODE_ENV=development pnpm install --frozen-lockfile
-    startCommand: pnpm attachments:cleanup
-    envVars:
-      - key: NODE_VERSION
-        value: 22.16.0
-      - key: DATABASE_URL
-        sync: false
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
-      - key: SUPABASE_STORAGE_BUCKET
-        value: a-ai-attachments
+# The daily attachments cleanup. Render has no free cron jobs, so
+# .github/workflows/cleanup.yml runs it on the same 03:30 UTC schedule. Restore
+# this service on a paid plan and disable that workflow; the two must not both run.
+#
+#  - type: cron
+#    name: a-ai-attachments-cleanup
+#    runtime: node
+#    plan: starter
+#    region: singapore
+#    schedule: '30 3 * * *'
+#    buildCommand: corepack enable && NODE_ENV=development pnpm install --frozen-lockfile
+#    startCommand: pnpm attachments:cleanup
+#    envVars:
+#      - key: NODE_VERSION
+#        value: 22.16.0
+#      - key: DATABASE_URL
+#        sync: false
+#      - key: SUPABASE_URL
+#        sync: false
+#      - key: SUPABASE_SERVICE_ROLE_KEY
+#        sync: false
+#      - key: SUPABASE_STORAGE_BUCKET
+#        value: a-ai-attachments
