@@ -15,6 +15,12 @@ type NavItem = {
   isActive: (pathname: string, hash: string) => boolean;
   /** History and the dashboard need an account, so guests are not offered them. */
   signedInOnly?: boolean;
+  /**
+   * Anchors into the landing page. They only mean something on `/`, so once a
+   * work page is open (signed in or not) they are dropped instead of navigating
+   * the reader away from what they are doing.
+   */
+  landingOnly?: boolean;
   /** In-page links give way on medium screens. */
   wideOnly?: boolean;
 };
@@ -32,12 +38,14 @@ const NAV: NavItem[] = [
     to: '/#features',
     label: 'Features',
     isActive: (pathname, hash) => pathname === '/' && hash === '#features',
+    landingOnly: true,
     wideOnly: true,
   },
   {
     to: '/#how-it-works',
     label: 'How it works',
     isActive: (pathname, hash) => pathname === '/' && hash === '#how-it-works',
+    landingOnly: true,
     wideOnly: true,
   },
 ];
@@ -84,7 +92,10 @@ function MobileNav({
 export function SiteHeader() {
   const signedIn = currentUser(useMe().data) !== null;
   const { pathname, hash } = useLocation();
-  const items = NAV.filter((item) => signedIn || !item.signedInOnly);
+  const onLanding = pathname === '/';
+  const items = NAV.filter(
+    (item) => (signedIn || !item.signedInOnly) && (onLanding || !item.landingOnly),
+  );
   const isCurrent = (item: NavItem) => item.isActive(pathname, hash);
 
   return (
