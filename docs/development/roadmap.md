@@ -38,6 +38,19 @@ Verified on the local machine; this supersedes the "placeholders" and "migration
 | CI browser smoke    | Failed on every push since `c99e355`: `getByLabel('Message')` also matched the "Send message" button. Selector fixed to `getByRole('textbox', { name: 'Message' })` in `apps/web/e2e/smoke.spec.ts`; **CI result pending the next push**               | Failing run 35013930646; fix format, lint and typecheck PASS locally (no local Chromium)                                                                                 |
 | Branch flow (§21.5) | Commits go directly to `main`; `main` is not protected; no `staging`/`production` GitHub environments                                                                                                                                                  | GitHub API                                                                                                                                                               |
 
+## Production hosting (2026-09-22)
+
+The owner registered `ajaydabhi.site` and A.ai moved onto it. Recorded in [ADR-017](../decisions/ADR-017-production-hosting.md) (amendment) and [deployment.md](deployment.md#live-production-values).
+
+| Area              | State                                                                                                                                           | Evidence                                                                  |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Web app           | Vercel, `https://aai.ajaydabhi.site`, strict CSP and HSTS served                                                                                | `curl -I` → 200 with the `vercel.json` headers                            |
+| API               | Render free service, `https://api.ajaydabhi.site` (was `a-ai-csbq.onrender.com`)                                                                | `GET /health` → `ok`, reports the deployed commit                         |
+| Cookies           | Two hosts on one registrable domain, so `__Host-` session cookies stay same-site; the app calls the API directly (`VITE_API_URL`), no proxy hop | `credentials: 'include'` in `services/api.ts`, `services/event-stream.ts` |
+| Fallback          | `apps/web/vercel.json` still rewrites `/api`, `/health`, `/ready` to the API; clearing `VITE_API_URL` returns the site to that same-origin path | `apps/web/vercel.json`                                                    |
+| Repository config | `vercel.json` rewrites and the keep-alive default URL now name `api.ajaydabhi.site`; README live links point at the domain                      | `.github/workflows/keep-alive.yml`, `README.md`                           |
+| Email             | Still `onboarding@resend.dev`; a sender on the domain is deferred by the owner (open item 5)                                                    | —                                                                         |
+
 ## Provider checks (2026-09-17)
 
 Run against the local API (`api-run`, port 4000) as a guest, one short prompt each ("Reply with exactly one word: ready"). Key values were never printed.
@@ -68,7 +81,7 @@ Free OpenRouter models are shared and often rate-limited or overloaded upstream;
 | 5   | Real verification and reset emails to any address                                                                                                    | P1         | Owner verifies a sending domain in Resend and sets `EMAIL_FROM`                     |
 | 6   | Admin promote + disable model; real bucket upload + vision answer; microphone and read-aloud in a real browser (API transcription passed 2026-09-17) | P3, P8, P9 | Manual QA now that the database is live and all provider keys are set               |
 | 7   | Per-provider concurrency caps (blueprint §13), deferred from Phase 6 and not implemented                                                             | P6 / P10   | New task                                                                            |
-| 8   | Domain, Render, Vercel, GitHub environments; staging deploy + `pnpm smoke`; restore drill; production                                                | P10        | Owner creates accounts ([deployment.md](deployment.md)); then Deploy workflow       |
+| 8   | GitHub `production` environment + Deploy workflow; staging deploy + `pnpm smoke`; restore drill. Domain, Render and Vercel are live (see below)      | P10        | Add the `production` environment secrets/variables, then release through Deploy     |
 
 ## Task IDs
 

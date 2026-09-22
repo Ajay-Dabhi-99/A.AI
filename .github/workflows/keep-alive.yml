@@ -38,7 +38,7 @@ jobs:
         env:
           # Override without editing this file: Settings -> Secrets and variables
           # -> Actions -> Variables -> KEEP_ALIVE_URL.
-          URL: ${{ vars.KEEP_ALIVE_URL || 'https://a-ai-csbq.onrender.com/health' }}
+          URL: ${{ vars.KEEP_ALIVE_URL || 'https://api.ajaydabhi.site/health' }}
         run: |
           set -euo pipefail
           # --max-time 90 covers a cold start; the retries cover a wake-up that

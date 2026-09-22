@@ -12,7 +12,7 @@ Send one prompt to several AI models at once, read their answers side by side, a
 ![pnpm 10](https://img.shields.io/badge/pnpm-10-F69220)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6)
 
-**[Try the live app](https://a-ai-chat.vercel.app)** · no account needed · [How it works](#how-it-works) · [Use cases](#real-world-use-cases) · [Run it locally](#getting-started)
+**[Try the live app](https://aai.ajaydabhi.site)** · no account needed · [How it works](#how-it-works) · [Use cases](#real-world-use-cases) · [Run it locally](#getting-started)
 
 </div>
 
@@ -285,7 +285,7 @@ flowchart LR
   F --> G["7 · Search history<br/>share · track usage"]
 ```
 
-**1. Open [a-ai-chat.vercel.app](https://a-ai-chat.vercel.app).** You are a guest immediately — no signup wall. The API runs on a free instance that sleeps after 15 idle minutes, so the very first request of the day can take up to a minute; the app retries it for you and shows that it is waking up.
+**1. Open [aai.ajaydabhi.site](https://aai.ajaydabhi.site).** You are a guest immediately — no signup wall. The API runs on a free instance that sleeps after 15 idle minutes, so the very first request of the day can take up to a minute; the app retries it for you and shows that it is waking up.
 
 **2. Just chat, or go straight to Compare.** `Chat` is a normal assistant with one model. `Compare` is the side-by-side view.
 
@@ -521,8 +521,8 @@ Workspace packages resolve from source in development through the `@a-ai/source`
 
 ```mermaid
 flowchart TB
-  User([Browser]) --> Vercel["Vercel<br/>React static build"]
-  Vercel -->|"/api/* rewrite<br/>keeps cookies first-party"| Render["Render<br/>Fastify API"]
+  User([Browser]) -->|aai.ajaydabhi.site| Vercel["Vercel<br/>React static build"]
+  User -->|"api.ajaydabhi.site<br/>cookies stay same-site"| Render["Render<br/>Fastify API"]
   Render --> Supabase[("Supabase<br/>PostgreSQL + Storage")]
   Render --> Upstash[("Upstash Redis")]
   Render --> AI(["OpenRouter · Gemini · Groq<br/>Cloudflare Workers AI"])
@@ -536,7 +536,7 @@ The live deployment runs on free plans, and the repository is honest about what 
 - **Cold starts.** A free Render instance sleeps after 15 idle minutes and needs 20–60 s to wake. `.github/workflows/keep-alive.yml` pings `/health` every 5 minutes during the day, and the web client retries the gateway errors a boot produces.
 - **No preDeploy hook.** Migrations are applied with `pnpm db:deploy` _before_ the deploy hook fires, not by Render.
 - **No cron.** `.github/workflows/cleanup.yml` runs the daily attachment cleanup on the schedule Render's cron service would have used.
-- **Cookies.** Vercel rewrites `/api/*` to the Render API so the site and the API share an origin and the `__Host-` session cookies stay first-party. Without that rewrite, `*.vercel.app` calling `*.onrender.com` would be cross-site and browsers would drop the session.
+- **Cookies.** The app and the API are two hosts on one registrable domain — `aai.ajaydabhi.site` and `api.ajaydabhi.site` — so the API's `__Host-` session cookies are same-site and ride along with every credentialed request. `vercel.json` keeps an `/api/*` rewrite to the same API as a fallback path for a build without `VITE_API_URL`. On the default hosts (`*.vercel.app` calling `*.onrender.com`) the cookies would be cross-site and browsers would drop the session.
 
 Moving to paid plans means setting `plan: starter` in [`render.yaml`](render.yaml), restoring `preDeployCommand` and the cron service, and disabling those two workflows. Step-by-step guides: [deployment-guide.md](docs/development/deployment-guide.md) (with a custom domain) and [A.ai-Free-Hosting-Guide.pdf](docs/development/A.ai-Free-Hosting-Guide.pdf) (without one).
 
@@ -544,7 +544,7 @@ Moving to paid plans means setting `plan: starter` in [`render.yaml`](render.yam
 
 ## Project status
 
-**Live in production** at **[a-ai-chat.vercel.app](https://a-ai-chat.vercel.app)**, with the API on Render, PostgreSQL and file storage on Supabase and Redis on Upstash.
+**Live in production** at **[aai.ajaydabhi.site](https://aai.ajaydabhi.site)**, with the API on Render at `api.ajaydabhi.site`, PostgreSQL and file storage on Supabase and Redis on Upstash.
 
 | Signal               | State                                                                                                                                                                                                 |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
