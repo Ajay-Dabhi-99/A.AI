@@ -1,6 +1,13 @@
 import { screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { baseRoutes, jsonResponse, mockApi, readyReport, renderApp } from './helpers/render';
+import {
+  baseRoutes,
+  jsonResponse,
+  mockApi,
+  readyReport,
+  renderApp,
+  userMe,
+} from './helpers/render';
 
 describe('landing page', () => {
   it('renders the hero, feature and how-it-works sections', async () => {
@@ -52,6 +59,28 @@ describe('landing page', () => {
     renderApp('/');
     await waitFor(() => expect(screen.getAllByText('API unreachable')).toHaveLength(1));
     expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login');
+  });
+
+  it('offers the in-page Features and How it works links on the landing page', () => {
+    mockApi(baseRoutes);
+    renderApp('/');
+
+    expect(screen.getByRole('link', { name: 'Features' })).toHaveAttribute('href', '/#features');
+    expect(screen.getByRole('link', { name: 'How it works' })).toHaveAttribute(
+      'href',
+      '/#how-it-works',
+    );
+  });
+
+  it('drops the landing anchors once a work page is open', async () => {
+    mockApi({ ...baseRoutes, '/api/me': () => jsonResponse(userMe) });
+    renderApp('/chat');
+
+    await waitFor(() =>
+      expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole('link', { name: 'Features' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'How it works' })).not.toBeInTheDocument();
   });
 
   it('renders a 404 page for unknown routes', () => {
