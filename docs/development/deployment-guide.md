@@ -6,7 +6,7 @@ A printable, click-by-click version (41 numbered steps) is in [A.ai-Deployment-G
 
 No custom domain yet (site on `*.vercel.app`, API on `*.onrender.com`, Render free plan)? Follow [A.ai-Free-Hosting-Guide.pdf](A.ai-Free-Hosting-Guide.pdf) ([.docx](A.ai-Free-Hosting-Guide.docx)) instead: it forwards `/api` through Vercel so sign-in cookies work.
 
-Replace `example.com` with your own domain throughout.
+Replace `example.com` with your own domain throughout. The live deployment this repository releases uses `aai.ajaydabhi.site` (web) and `api.ajaydabhi.site` (API); its settings are listed in [deployment.md → Live production values](deployment.md#live-production-values).
 
 ---
 

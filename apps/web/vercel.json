@@ -7,10 +7,10 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://a-ai-csbq.onrender.com/api/:path*"
+      "destination": "https://api.ajaydabhi.site/api/:path*"
     },
-    { "source": "/health", "destination": "https://a-ai-csbq.onrender.com/health" },
-    { "source": "/ready", "destination": "https://a-ai-csbq.onrender.com/ready" },
+    { "source": "/health", "destination": "https://api.ajaydabhi.site/health" },
+    { "source": "/ready", "destination": "https://api.ajaydabhi.site/ready" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [

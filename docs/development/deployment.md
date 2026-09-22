@@ -2,14 +2,14 @@
 
 How A.ai runs in production and how to release, roll back and recover. Design: [ADR-017](../decisions/ADR-017-production-hosting.md). Checklist: [release-checklist.md](release-checklist.md). First-time setup, step by step: [deployment-guide.md](deployment-guide.md).
 
-Replace `example.com` with your domain throughout.
+The live production deployment runs on `ajaydabhi.site` (ADR-017, amendment of 2026-09-22); the exact values are in [Live production values](#live-production-values). Elsewhere in this file `example.com` stands for whatever domain an environment uses — staging has its own.
 
 ## Topology
 
 | Part        | Service             | Address                           | Config                          |
 | ----------- | ------------------- | --------------------------------- | ------------------------------- |
-| Web app     | Vercel              | `https://app.example.com`         | `apps/web/vercel.json`          |
-| API         | Render web service  | `https://api.example.com`         | `render.yaml`                   |
+| Web app     | Vercel              | `https://aai.ajaydabhi.site`      | `apps/web/vercel.json`          |
+| API         | Render web service  | `https://api.ajaydabhi.site`      | `render.yaml`                   |
 | Cleanup job | Render cron, daily  | —                                 | `render.yaml`                   |
 | Database    | Supabase PostgreSQL | pooled `6543`, direct `5432`      | `DATABASE_URL`, `DIRECT_URL`    |
 | Redis       | Upstash             | `rediss://…`                      | `REDIS_URL`                     |
@@ -34,16 +34,16 @@ Create a Redis database per environment (TLS on). Copy the `rediss://` URL as `R
 ### 3. Render (API)
 
 1. New → Blueprint → select the repository; Render reads `render.yaml`. Change `region` there first if Singapore is not closest to your users.
-2. Fill every variable marked `sync: false` (table below). `CORS_ORIGIN` and `APP_URL` are `https://app.example.com`.
-3. Settings → Custom Domain: add `api.example.com` and create the CNAME Render shows at your DNS provider.
+2. Fill every variable marked `sync: false` (table below). `CORS_ORIGIN` and `APP_URL` are the web app's origin, `https://aai.ajaydabhi.site` in production.
+3. Settings → Custom Domain: add `api.ajaydabhi.site` and create the CNAME Render shows at your DNS provider (it points at the service's `*.onrender.com` host). Render issues the certificate; the domain shows **Verified** when both are ready.
 4. Settings → Deploy Hook: copy the URL (it is a secret).
 5. The first deploy runs `pnpm db:deploy` before starting. Check `https://api.example.com/ready` returns `ready`.
 
 ### 4. Vercel (web)
 
 1. Add New → Project → the repository. **Root Directory:** `apps/web` (framework, build and output come from `vercel.json`).
-2. Environment variables (Production): `VITE_API_URL=https://api.example.com`, and optionally `VITE_SENTRY_DSN`.
-3. Domains: add `app.example.com` and create the DNS record Vercel shows.
+2. Environment variables (Production): `VITE_API_URL=https://api.ajaydabhi.site`, and optionally `VITE_SENTRY_DSN`. It is read at build time, so changing it needs a redeploy.
+3. Domains: add `aai.ajaydabhi.site` and create the DNS record Vercel shows.
 4. Settings → Git → Deploy Hooks: create one for `main` and copy it (a secret). Turn off automatic production deployments from Git, so only the Deploy workflow releases.
 
 ### 5. Sentry (optional)
@@ -82,6 +82,25 @@ Settings → Branches: require the `CI` checks (`Typecheck, lint, test, build` a
 
 `pnpm check:env` validates a set of variables without printing values.
 
+## Live production values
+
+Recorded 2026-09-22. None of these is a secret; every secret stays in the Render, Vercel and GitHub dashboards.
+
+| Setting                  | Where                              | Value                                                      |
+| ------------------------ | ---------------------------------- | ---------------------------------------------------------- |
+| Web app                  | Vercel, root directory `apps/web`  | `https://aai.ajaydabhi.site`                               |
+| API                      | Render web service `a-ai-api`      | `https://api.ajaydabhi.site`                               |
+| `aai` DNS record         | domain registrar                   | CNAME to the host Vercel shows                             |
+| `api` DNS record         | domain registrar                   | CNAME to `a-ai-csbq.onrender.com`                          |
+| `CORS_ORIGIN`, `APP_URL` | Render                             | `https://aai.ajaydabhi.site`                               |
+| `VITE_API_URL`           | Vercel, Production                 | `https://api.ajaydabhi.site`                               |
+| `API_URL`, `WEB_ORIGIN`  | GitHub environment `production`    | `https://api.ajaydabhi.site`, `https://aai.ajaydabhi.site` |
+| `KEEP_ALIVE_URL`         | GitHub Actions variable (optional) | defaults to `https://api.ajaydabhi.site/health`            |
+
+The apex `ajaydabhi.site` and `www` serve a different site; A.ai only owns the two labels above.
+
+**If the API subdomain ever fails** (DNS, certificate, or a Render domain change): clear `VITE_API_URL` in Vercel and redeploy. The app falls back to `/api` on its own origin, which `apps/web/vercel.json` rewrites to the same API, and sessions keep working because the cookies are then same-origin.
+
 ## Releasing
 
 1. Merge to `main` with CI green.
@@ -99,7 +118,7 @@ Settings → Branches: require the `CI` checks (`Typecheck, lint, test, build` a
 Run the deployment smoke by hand at any time:
 
 ```bash
-pnpm smoke --api https://api.example.com --web https://app.example.com
+pnpm smoke --api https://api.ajaydabhi.site --web https://aai.ajaydabhi.site
 ```
 
 It calls no AI provider and creates one short-lived guest session.

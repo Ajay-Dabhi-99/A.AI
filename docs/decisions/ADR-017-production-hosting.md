@@ -100,3 +100,46 @@ Migrations are the weak point of this arrangement. Nothing in the deploy path
 applies them, so a release that needs a schema change must have `pnpm db:deploy`
 run against production first. Moving back to a paid plan restores
 `preDeployCommand` and removes that manual step.
+
+## Amendment (2026-09-22): the live domain is `ajaydabhi.site`
+
+The owner registered the domain and A.ai now runs on it. The `app.` / `api.`
+pattern of decision 1 holds; only the labels differ, because the apex and `www`
+already serve a separate site.
+
+| Part    | Address                      | Host                                      |
+| ------- | ---------------------------- | ----------------------------------------- |
+| Web app | `https://aai.ajaydabhi.site` | Vercel, project root `apps/web`           |
+| API     | `https://api.ajaydabhi.site` | Render web service `a-ai-api` (free plan) |
+
+Both are hosts under the registrable domain `ajaydabhi.site`, so the API's
+`__Host-` cookies are same-site and are sent with the app's credentialed
+requests (`credentials: 'include'` in `apps/web/src/services/api.ts` and
+`event-stream.ts`). The API is reached directly through `VITE_API_URL`, so no
+proxy sits in the streaming path.
+
+Concrete configuration:
+
+| Where                  | Setting                                | Value                                                                        |
+| ---------------------- | -------------------------------------- | ---------------------------------------------------------------------------- |
+| DNS (registrar)        | `aai` CNAME                            | the record Vercel shows for the domain                                       |
+| DNS (registrar)        | `api` CNAME                            | the Render service host (`a-ai-csbq.onrender.com`)                           |
+| Render                 | `CORS_ORIGIN`, `APP_URL`               | `https://aai.ajaydabhi.site`                                                 |
+| Vercel (production)    | `VITE_API_URL`                         | `https://api.ajaydabhi.site`                                                 |
+| GitHub `production`    | `API_URL`, `WEB_ORIGIN`                | `https://api.ajaydabhi.site`, `https://aai.ajaydabhi.site`                   |
+| GitHub Actions         | `KEEP_ALIVE_URL` (variable, optional)  | defaults to `https://api.ajaydabhi.site/health` in the workflow              |
+| `apps/web/vercel.json` | `/api/*`, `/health`, `/ready` rewrites | `https://api.ajaydabhi.site` — a fallback for a build without `VITE_API_URL` |
+
+The rewrites stay for exactly that reason: with `VITE_API_URL` set, the browser
+never uses them, and clearing that variable in Vercel puts the site back on the
+same-origin proxy path within one redeploy. That is the rollback if the
+subdomain or its certificate ever fails.
+
+The Content-Security-Policy still allows `connect-src https:` rather than naming
+the API host. Sentry ingest and Supabase signed URLs are also fetched from the
+browser, and `script-src` — the XSS-relevant directive — stays `'self'`.
+
+Not done here: `EMAIL_FROM` still uses `onboarding@resend.dev`, which Resend
+delivers only to the account owner's own address. Verifying `ajaydabhi.site` in
+Resend and setting a sender on it is the remaining step before signup
+verification works for anyone else (roadmap open item 5).
